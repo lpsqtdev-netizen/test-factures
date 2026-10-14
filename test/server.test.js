@@ -97,6 +97,9 @@ test('creates a validated order and persists it between requests', async () => {
   assert.equal(created.body.order.status, 'À préparer');
   const listed = await request('/api/orders');
   assert.ok(listed.body.orders.some(order => order.id === created.body.order.id && order.price === 37.5));
+  const audit = await request('/api/audit');
+  assert.equal(audit.status, 200);
+  assert.ok(audit.body.events.some(event => event.action === 'order.created' && event.entityId === created.body.order.id && event.actor === process.env.PETAL_ADMIN_EMAIL));
 });
 
 test('serializes concurrent order creation without duplicate IDs or lost orders', async () => {
