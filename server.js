@@ -9,6 +9,8 @@ const ROOT = __dirname;
 const PORT = Number(process.env.PORT || 3000);
 const STORE_PATH = process.env.PETAL_STORE_PATH || path.join(ROOT, 'data', 'store.json');
 const MAX_BODY_BYTES = 32 * 1024;
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const sessions = new Map();
 
 const seed = {
   orders: [
@@ -99,6 +101,26 @@ async function saveStore(store) {
   await fs.promises.writeFile(temp, JSON.stringify(store, null, 2) + '\n', { mode: 0o600 });
   await fs.promises.rename(temp, STORE_PATH);
 }
+function parseCookies(header = '') {
+  return Object.fromEntries(header.split(';').map(part => part.trim()).filter(Boolean).map(part => {
+    const index = part.indexOf('=');
+    return index < 0 ? [part, ''] : [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
+  }));
+}
+function passwordMatches(password, expected) {
+  const [salt, stored] = expected.split(':');
+  const actual = crypto.scryptSync(password, salt, 64).toString('hex');
+  const left = Buffer.from(actual, 'hex');
+  const right = Buffer.from(stored, 'hex');
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+function passwordRecord(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return salt + ':' + crypto.scryptSync(password, salt, 64).toString('hex');
+}
+function sessionCookie(token, secure) {
+  return 'petale_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + Math.floor(SESSION_TTL_MS / 1000) + (secure ? '; Secure' : '');
+}
 function contentType(file) {
   return ({ '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' })[path.extname(file)] || 'application/octet-stream';
 }
@@ -125,10 +147,51 @@ function createServer() {
           res.writeHead(204, { 'Allow': 'GET, POST, PATCH, OPTIONS' });
           return res.end();
         }
-        const store = await loadStore();
         if (url.pathname === '/api/health' && req.method === 'GET') {
-          return json(res, 200, { ok: true, service: 'petale-api', storage: 'json-file', auth: 'not-configured' });
+          return json(res, 200, { ok: true, service: 'petale-api', storage: 'json-file', auth: 'required', adminConfigured: Boolean(process.env.PETAL_ADMIN_EMAIL && process.env.PETAL_ADMIN_PASSWORD) });
         }
+        const secureCookie = process.env.NODE_ENV === 'production';
+        if (url.pathname === '/api/auth/login' && req.method === 'POST') {
+          if (!process.env.PETAL_ADMIN_EMAIL || !process.env.PETAL_ADMIN_PASSWORD) {
+            return json(res, 503, { error: 'Authentification non configurée. Définissez PETAL_ADMIN_EMAIL et PETAL_ADMIN_PASSWORD.' });
+          }
+          const body = await readBody(req);
+          const email = safeString(body.email, 254).toLowerCase();
+          const password = typeof body.password === 'string' ? body.password : '';
+          const configuredEmail = process.env.PETAL_ADMIN_EMAIL.toLowerCase();
+          const configuredRecord = process.env.PETAL_ADMIN_PASSWORD_RECORD;
+          const record = configuredRecord || (process.env.PETAL_ADMIN_PASSWORD ? passwordRecord(process.env.PETAL_ADMIN_PASSWORD) : '');
+          // Constant-time password comparison is used after a normalized email comparison.
+          const emailMatches = email === configuredEmail;
+          const passwordOk = password.length <= 1024 && record && passwordMatches(password, record);
+          if (!emailMatches || !passwordOk) return json(res, 401, { error: 'Identifiants incorrects.' });
+          const token = crypto.randomBytes(32).toString('base64url');
+          sessions.set(token, { user: { email: configuredEmail, role: 'admin' }, expiresAt: Date.now() + SESSION_TTL_MS });
+          res.setHeader('Set-Cookie', sessionCookie(token, secureCookie));
+          return json(res, 200, { user: { email: configuredEmail, role: 'admin' } });
+        }
+        if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
+          const token = parseCookies(req.headers.cookie).petale_session;
+          if (token) sessions.delete(token);
+          res.setHeader('Set-Cookie', 'petale_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0' + (secureCookie ? '; Secure' : ''));
+          return json(res, 200, { ok: true });
+        }
+        const token = parseCookies(req.headers.cookie).petale_session;
+        const session = token ? sessions.get(token) : null;
+        if (session && session.expiresAt <= Date.now()) sessions.delete(token);
+        const activeSession = session && session.expiresAt > Date.now() ? session : null;
+        if (url.pathname === '/api/auth/me' && req.method === 'GET') {
+          return json(res, 200, { user: activeSession?.user || null });
+        }
+        if (!process.env.PETAL_ADMIN_EMAIL || !process.env.PETAL_ADMIN_PASSWORD) {
+          return json(res, 503, { error: 'Authentification non configurée. Définissez PETAL_ADMIN_EMAIL et PETAL_ADMIN_PASSWORD.' });
+        }
+        if (!activeSession) return json(res, 401, { error: 'Connexion requise.' });
+        if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers.origin) {
+          const origin = new URL(req.headers.origin);
+          if (origin.host !== req.headers.host) return json(res, 403, { error: 'Origine de requête refusée.' });
+        }
+        const store = await loadStore();
         if (url.pathname === '/api/orders' && req.method === 'GET') {
           return json(res, 200, { orders: store.orders });
         }
