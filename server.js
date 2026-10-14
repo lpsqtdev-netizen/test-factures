@@ -247,6 +247,7 @@ function createServer() {
           return json(res, 200, { orders });
         }
         if (url.pathname === '/api/audit' && req.method === 'GET') {
+          if (activeSession.user.role !== 'admin') return json(res, 403, { error: 'Droits administrateur requis.' });
           return json(res, 200, { events: store.audit.slice(0, 200) });
         }
         if (url.pathname === '/api/orders' && req.method === 'GET') {
