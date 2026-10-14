@@ -74,3 +74,11 @@ test('frontend navigation is scoped to the authenticated account role', () => {
   assert.match(html, /navigate\(user\.role==='livreur'\?'courier':'dashboard'\)/);
   assert.match(html, /button\.hidden=user\.role==='livreur'/);
 });
+
+
+test('courier completion flow captures an optional delivery note', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /Note de livraison \(facultatif\)/);
+  assert.match(html, /deliveryNote:deliveryNote\.slice\(0,300\)/);
+  assert.match(html, /deliveredAt=new Date\(\)\.toISOString\(\)/);
+});
