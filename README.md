@@ -41,6 +41,7 @@ Sans identifiants administrateur configurés, l'API métier reste fermée et le 
 - `GET /api/auth/me` — utilisateur de la session courante.
 - `POST /api/auth/logout` — ferme la session.
 - `GET /api/orders` — liste les commandes.
+- `GET /api/audit` — journal des 200 événements les plus récents (créations et changements de commande).
 - `POST /api/orders` — crée une commande après validation.
 - `PATCH /api/orders/:id/assign` — assigne un livreur et démarre la livraison.
 - `PATCH /api/orders/:id/status` — fait évoluer le statut selon le cycle `À préparer → En livraison → Livrée`.
@@ -54,7 +55,7 @@ Les routes métier exigent une session valide. Le cookie est HttpOnly, SameSite=
 npm test
 ```
 
-GitHub Actions exécute les tests Node.js et construit l'image Docker. Les tests couvrent notamment les sessions, les identifiants incorrects, la déconnexion, le rejet des requêtes cross-origin, la limitation des tentatives, la validation des entrées, les créations concurrentes, les transitions de statut, l'échappement HTML et la syntaxe JavaScript de l'interface.
+GitHub Actions exécute les tests Node.js et construit l'image Docker. Les tests couvrent notamment les sessions, les identifiants incorrects, la déconnexion, le rejet des requêtes cross-origin, la limitation des tentatives, la validation des entrées, les créations concurrentes, le journal d'audit, les transitions de statut, l'échappement HTML et la syntaxe JavaScript de l'interface.
 
 ## Exécution avec Docker
 
