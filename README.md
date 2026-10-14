@@ -40,6 +40,7 @@ Sans identifiants administrateur configurés, l'API métier reste fermée et le 
 - `GET /api/health` — état du service et configuration.
 - `POST /api/auth/login` — ouvre une session administrateur.
 - `GET /api/auth/me` — utilisateur de la session courante.
+- `POST /api/auth/password` — changement du mot de passe d'un compte partenaire, avec vérification du mot de passe actuel et révocation des autres sessions (le mot de passe administrateur reste géré par l'environnement).
 - `GET /api/users` / `POST /api/users` — consultation et création de comptes partenaires (administrateur uniquement).
 - `GET /api/orders/available` — missions ouvertes sans données de contact privées, réservé aux livreurs.
 - `POST /api/auth/logout` — ferme la session.
@@ -58,7 +59,7 @@ Les routes métier exigent une session valide. Le cookie est HttpOnly, SameSite=
 npm test
 ```
 
-GitHub Actions exécute les tests Node.js et construit l'image Docker. Les tests couvrent notamment les sessions, les identifiants incorrects, la déconnexion, le rejet des requêtes cross-origin, la limitation des tentatives, la validation des entrées, les créations concurrentes, le journal d'audit, les transitions de statut, l'échappement HTML et la syntaxe JavaScript de l'interface.
+GitHub Actions exécute les tests Node.js et construit l'image Docker. Les tests couvrent notamment les sessions, le changement de mot de passe et la révocation des sessions, les identifiants incorrects, la déconnexion, l'isolation des commandes entre fleuristes, le rejet des requêtes cross-origin, la limitation des tentatives, la validation des entrées, les créations concurrentes, le journal d'audit, les transitions de statut, l'échappement HTML et la syntaxe JavaScript de l'interface.
 
 ## Exécution avec Docker
 
