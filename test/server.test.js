@@ -145,5 +145,8 @@ test('serves the frontend from the same origin', async () => {
   const response = await fetch(baseUrl + '/');
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type'), /text\/html/);
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(response.headers.get('x-frame-options'), 'DENY');
+  assert.equal(response.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
   assert.match(await response.text(), /Pétale/);
 });
