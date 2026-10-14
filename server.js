@@ -323,6 +323,11 @@ function createServer() {
               order.courier = courier;
             }
             if (status === 'Livrée' && !order.courier) order.courier = 'Livreur non renseigné';
+            if (status === 'Livrée' && order.status !== 'Livrée') {
+              order.deliveredAt = new Date().toISOString();
+              order.deliveredBy = activeSession.user.email;
+              order.deliveryNote = safeString(body.deliveryNote, 300);
+            }
             order.status = status;
           }
           store.audit.unshift({ id: crypto.randomUUID(), action: match[2] === 'assign' ? 'order.assigned' : 'order.status_changed', entityId: order.id, actor: activeSession.user.email, at: new Date().toISOString(), status: order.status, courier: order.courier || '' });
