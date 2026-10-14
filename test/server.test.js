@@ -334,6 +334,48 @@ test('isolates florist orders and blocks cross-account order mutations', async (
   assert.ok((await alphaOrdersResponse.json()).orders.some(item => item.id === order.id));
 });
 
+test('allows partners to change passwords and revokes their other sessions', async () => {
+  const initialPassword = 'Partner-Initial-Password-2026!';
+  const nextPassword = 'Partner-New-Password-2026!!';
+  const created = await request('/api/users', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Compte Sécurité', email: 'password.change@petale.test', role: 'fleuriste', password: initialPassword })
+  });
+  assert.equal(created.status, 201);
+
+  async function login(password) {
+    return fetch(baseUrl + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'password.change@petale.test', password })
+    });
+  }
+  const firstLogin = await login(initialPassword);
+  const secondLogin = await login(initialPassword);
+  assert.equal(firstLogin.status, 200);
+  assert.equal(secondLogin.status, 200);
+  const firstCookie = firstLogin.headers.get('set-cookie').split(';')[0];
+  const secondCookie = secondLogin.headers.get('set-cookie').split(';')[0];
+
+  const changed = await fetch(baseUrl + '/api/auth/password', {
+    method: 'POST',
+    headers: { Cookie: firstCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword: initialPassword, newPassword: nextPassword })
+  });
+  assert.equal(changed.status, 200);
+  assert.equal((await changed.json()).ok, true);
+
+  const otherSession = await fetch(baseUrl + '/api/orders', { headers: { Cookie: secondCookie } });
+  assert.equal(otherSession.status, 401);
+  const oldLogin = await login(initialPassword);
+  assert.equal(oldLogin.status, 401);
+  const newLogin = await login(nextPassword);
+  assert.equal(newLogin.status, 200);
+
+  const audit = await request('/api/audit');
+  assert.ok(audit.body.events.some(event => event.action === 'user.password_changed' && event.entityId === created.body.user.id));
+});
+
 test('throttles repeated invalid login attempts', async () => {
   let response;
   for (let index = 0; index < 11; index += 1) {
