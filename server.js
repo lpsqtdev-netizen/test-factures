@@ -314,13 +314,13 @@ function createServer() {
             email: safeString(body.email, 254).toLowerCase(),
             phone: safeString(body.phone, 40),
             pickupAddress: safeString(body.pickupAddress, 240),
-            siret: safeString(body.siret, 20).replace(/\\s/g, ''),
+            siret: safeString(body.siret, 20).replace(/\s/g, ''),
             vatNumber: safeString(body.vatNumber, 30).toUpperCase()
           };
           if (settings.shopName.length < 2) return json(res, 422, { error: 'Le nom de la boutique doit contenir au moins 2 caractères.' });
           if (settings.ownerName.length < 2) return json(res, 422, { error: 'Le nom du responsable doit contenir au moins 2 caractères.' });
-          if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(settings.email)) return json(res, 422, { error: 'Adresse e-mail professionnelle invalide.' });
-          if (settings.siret && !/^\\d{14}$/.test(settings.siret)) return json(res, 422, { error: 'Le SIRET doit contenir exactement 14 chiffres.' });
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.email)) return json(res, 422, { error: 'Adresse e-mail professionnelle invalide.' });
+          if (settings.siret && !/^\d{14}$/.test(settings.siret)) return json(res, 422, { error: 'Le SIRET doit contenir exactement 14 chiffres.' });
           settings.updatedAt = new Date().toISOString();
           settings.updatedBy = activeSession.user.email;
           store.settingsByUser[activeSession.user.id] = settings;
