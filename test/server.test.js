@@ -97,6 +97,15 @@ test('rejects unknown orders and invalid status transitions', async () => {
   assert.equal(invalid.status, 422);
 });
 
+test('prevents a delivery from moving backwards in its lifecycle', async () => {
+  const response = await request('/api/orders/PET-0248/status', {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'À préparer' })
+  });
+  assert.equal(response.status, 409);
+  assert.match(response.body.error, /Transition de statut impossible/);
+});
+
 test('serves the frontend from the same origin', async () => {
   const response = await fetch(baseUrl + '/');
   assert.equal(response.status, 200);
