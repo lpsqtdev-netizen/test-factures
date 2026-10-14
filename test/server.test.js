@@ -181,6 +181,19 @@ test('prevents a delivery from moving backwards in its lifecycle', async () => {
   assert.match(response.body.error, /Transition de statut impossible/);
 });
 
+test('throttles repeated invalid login attempts', async () => {
+  let response;
+  for (let index = 0; index < 10; index += 1) {
+    response = await request('/api/auth/login', {
+      auth: false,
+      method: 'POST',
+      body: JSON.stringify({ email: process.env.PETAL_ADMIN_EMAIL, password: 'wrong-password-' + index })
+    });
+  }
+  assert.equal(response.status, 429);
+  assert.match(response.body.error, /Trop de tentatives/);
+});
+
 test('serves the frontend from the same origin', async () => {
   const response = await fetch(baseUrl + '/');
   assert.equal(response.status, 200);
