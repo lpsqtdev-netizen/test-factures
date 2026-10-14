@@ -57,3 +57,12 @@ test('frontend exposes API-first startup and local demo fallback', () => {
   assert.match(html, /mode démo local/i);
   assert.match(html, /id="view-courier"/);
 });
+
+
+test('dashboard KPIs and activity are derived from loaded orders', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /id="metricOrderValue"/);
+  assert.match(html, /const orderValue=orders\.reduce/);
+  assert.match(html, /function renderActivities\(\)\{const recent=orders\.slice\(\)/);
+  assert.doesNotMatch(html, /Nouvelle commande reçue','Thomas Petit/);
+});
