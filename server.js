@@ -16,6 +16,7 @@ const loginAttempts = new Map();
 const seed = {
   audit: [],
   users: [],
+  settingsByUser: {},
   orders: [
     { id: 'PET-0248', name: 'Élodie Bernard', address: '12 rue Fondaudège, Bordeaux', slot: '11h – 13h', price: 68, status: 'En livraison', art: '💐', bouquet: 'Bouquet de saison', courier: 'Lucas Moreau', createdAt: '2026-10-14T08:15:00.000Z' },
     { id: 'PET-0247', name: 'Thomas Petit', address: '5 place des Quinconces, Bordeaux', slot: '12h – 14h', price: 42, status: 'À préparer', art: '🌷', bouquet: 'Composition florale', courier: '', createdAt: '2026-10-14T08:40:00.000Z' },
@@ -93,6 +94,7 @@ async function loadStore() {
     if (parsed && Array.isArray(parsed.orders) && Array.isArray(parsed.couriers)) {
       if (!Array.isArray(parsed.audit)) parsed.audit = [];
       if (!Array.isArray(parsed.users)) parsed.users = [];
+      if (!parsed.settingsByUser || typeof parsed.settingsByUser !== 'object' || Array.isArray(parsed.settingsByUser)) parsed.settingsByUser = {};
       return parsed;
     }
   } catch (err) {
@@ -294,6 +296,38 @@ function createServer() {
             if (sessionData.user.id === account.id && sessionToken !== token) sessions.delete(sessionToken);
           }
           return json(res, 200, { ok: true, passwordChangedAt: account.passwordChangedAt });
+        }
+        if (url.pathname === '/api/settings' && req.method === 'GET') {
+          if (!['admin', 'fleuriste'].includes(activeSession.user.role)) {
+            return json(res, 403, { error: 'Les paramètres de boutique sont réservés aux comptes administrateur et fleuriste.' });
+          }
+          return json(res, 200, { settings: store.settingsByUser[activeSession.user.id] || null });
+        }
+        if (url.pathname === '/api/settings' && req.method === 'POST') {
+          if (!['admin', 'fleuriste'].includes(activeSession.user.role)) {
+            return json(res, 403, { error: 'Les paramètres de boutique sont réservés aux comptes administrateur et fleuriste.' });
+          }
+          const body = await readBody(req);
+          const settings = {
+            shopName: safeString(body.shopName, 100),
+            ownerName: safeString(body.ownerName, 100),
+            email: safeString(body.email, 254).toLowerCase(),
+            phone: safeString(body.phone, 40),
+            pickupAddress: safeString(body.pickupAddress, 240),
+            siret: safeString(body.siret, 20).replace(/\\s/g, ''),
+            vatNumber: safeString(body.vatNumber, 30).toUpperCase()
+          };
+          if (settings.shopName.length < 2) return json(res, 422, { error: 'Le nom de la boutique doit contenir au moins 2 caractères.' });
+          if (settings.ownerName.length < 2) return json(res, 422, { error: 'Le nom du responsable doit contenir au moins 2 caractères.' });
+          if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(settings.email)) return json(res, 422, { error: 'Adresse e-mail professionnelle invalide.' });
+          if (settings.siret && !/^\\d{14}$/.test(settings.siret)) return json(res, 422, { error: 'Le SIRET doit contenir exactement 14 chiffres.' });
+          settings.updatedAt = new Date().toISOString();
+          settings.updatedBy = activeSession.user.email;
+          store.settingsByUser[activeSession.user.id] = settings;
+          store.audit.unshift({ id: crypto.randomUUID(), action: 'settings.updated', entityId: activeSession.user.id, actor: activeSession.user.email, at: settings.updatedAt });
+          store.audit = store.audit.slice(0, 1000);
+          await saveStore(store);
+          return json(res, 200, { settings });
         }
         if (url.pathname === '/api/users' && req.method === 'GET') {
           if (activeSession.user.role !== 'admin') return json(res, 403, { error: 'Droits administrateur requis.' });
