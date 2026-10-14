@@ -473,7 +473,12 @@ test('creates private rotating backups before replacing the JSON store', async (
 
 
 test('prevents dispatching a live order to a demo-only courier', async () => {
-  const response = await request('/api/orders/PET-0247/assign', {
+  const created = await request('/api/orders', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Client dispatch', address: '10 rue du Test, Bordeaux', slot: '15h – 17h', price: 35 })
+  });
+  assert.equal(created.status, 201);
+  const response = await request('/api/orders/' + created.body.order.id + '/assign', {
     method: 'PATCH',
     body: JSON.stringify({ courier: 'Inès Robert' })
   });
