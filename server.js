@@ -126,6 +126,9 @@ function passwordRecord(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   return salt + ':' + crypto.scryptSync(password, salt, 64).toString('hex');
 }
+function adminConfigured() {
+  return Boolean(process.env.PETAL_ADMIN_EMAIL && process.env.PETAL_ADMIN_EMAIL.trim() && process.env.PETAL_ADMIN_PASSWORD && process.env.PETAL_ADMIN_PASSWORD.length >= 12);
+}
 function sessionCookie(token, secure) {
   return 'petale_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + Math.floor(SESSION_TTL_MS / 1000) + (secure ? '; Secure' : '');
 }
@@ -162,11 +165,11 @@ function createServer() {
           return res.end();
         }
         if (url.pathname === '/api/health' && req.method === 'GET') {
-          return json(res, 200, { ok: true, service: 'petale-api', storage: 'json-file', auth: 'required', adminConfigured: Boolean(process.env.PETAL_ADMIN_EMAIL && process.env.PETAL_ADMIN_PASSWORD) });
+          return json(res, 200, { ok: true, service: 'petale-api', storage: 'json-file', auth: 'required', adminConfigured: adminConfigured() });
         }
         const secureCookie = process.env.NODE_ENV === 'production';
         if (url.pathname === '/api/auth/login' && req.method === 'POST') {
-          if (!process.env.PETAL_ADMIN_EMAIL || !process.env.PETAL_ADMIN_PASSWORD) {
+          if (!adminConfigured()) {
             return json(res, 503, { error: 'Authentification non configurée. Définissez PETAL_ADMIN_EMAIL et PETAL_ADMIN_PASSWORD.' });
           }
           const now = Date.now();
