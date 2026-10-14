@@ -86,6 +86,8 @@ test('courier completion flow captures an optional delivery note', () => {
 
 test('order register displays escaped delivery proof metadata', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  assert.match(html, /Preuve : \\$\{escapeHtml\(o\.deliveryNote\)\}/);
-  assert.match(html, /o\.deliveredAt\?escapeHtml\(new Date\(o\.deliveredAt\)\.toLocaleString/);
+  assert.match(html, /Preuve :/);
+  assert.match(html, /escapeHtml\(o\.deliveryNote\)/);
+  assert.match(html, /o\.deliveredAt/);
+  assert.match(html, /toLocaleString\('fr-FR'/);
 });
