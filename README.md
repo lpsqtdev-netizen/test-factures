@@ -1,90 +1,82 @@
 # Pétale — La livraison fleurie
 
-Prototype web responsive d'une plateforme de coordination entre fleuristes indépendants et livreurs.
+Pétale est un MVP de plateforme de coordination entre fleuristes indépendants et livreurs. Il associe une interface web responsive à un serveur Node.js, une API protégée et un stockage local pour les essais.
 
-## Lancer le prototype
-Ouvrir simplement `index.html` dans un navigateur. Aucun build ni dépendance d'installation n'est requis. La police utilise Google Fonts ; le reste du prototype fonctionne côté navigateur.
+## Fonctionnalités
 
-## Fonctionnalités de démonstration
-- Tableau de bord fleuriste et indicateurs d'activité
-- Création de commandes/livraisons avec destinataire, adresse, créneau, montant et consignes
-- Liste filtrable des commandes et assignation de démonstration
-- Vue dispatch/tournée avec illustration de carte (non connectée à un service de cartographie)
-- Annuaire de livreurs partenaires
-- Registre de facturation de démonstration et export CSV des commandes
-- Paramètres de boutique et espaces réservés aux intégrations Google Sheets, Google Drive, n8n, cartographie, email/SMS et paiements
+- Tableau de bord fleuriste et suivi des commandes.
+- Création de commandes avec destinataire, adresse, créneau, bouquet, montant et consignes.
+- Dispatch et attribution des missions.
+- Espace livreur de démonstration pour accepter et terminer une livraison.
+- Annuaire des livreurs partenaires et vue tournée illustrative.
+- Registre de facturation de démonstration et export CSV.
+- Actualisation périodique des commandes entre navigateurs connectés à la même instance.
+- Session administrateur, formulaire de connexion/déconnexion et routes métier protégées.
+- Image Docker non privilégiée, health check et volume persistant.
 
-## Limites importantes
-Cette version est un prototype front-end : les données sont conservées uniquement en mémoire dans la page et sont réinitialisées au rechargement. Il n'y a pas encore de comptes utilisateurs, backend, base de données, géocodage, calcul de trajet réel, notifications, paiement, ni émission de factures conformes. Les chiffres, clients, livreurs et documents préremplis sont fictifs. Les connexions tierces sont volontairement inactives.
+Les données et personnes préremplies sont fictives. Les vues de cartographie, facturation et intégrations restent des démonstrations ; aucun paiement, itinéraire réel, email/SMS ou service Google/n8n n'est activé.
 
-## Prochaines étapes recommandées
-1. Choisir backend/base de données et authentification avec rôles fleuriste/livreur/admin.
-2. Persister les commandes et gérer les transitions de statut côté serveur.
-3. Ajouter invitations, disponibilité et preuve de livraison.
-4. Intégrer un fournisseur de cartes et optimiser les tournées.
-5. Générer des factures PDF avec numérotation et informations légales configurées.
-6. Connecter Google Sheets/Drive et les automatisations n8n via des secrets côté serveur.
-7. Ajouter tests, validation, journalisation et déploiement.
+## Démarrage local
 
-## Stack
-HTML, CSS et JavaScript natifs pour garder la première maquette légère et facilement inspectable.
+Prérequis : Node.js 20.6+ (pour `--env-file`).
 
+```bash
+cp .env.example .env
+```
 
-## Mise à jour — espace livreur
-Le prototype inclut maintenant une vue « Espace livreur » :
-- consulter les commandes encore à prendre en charge ;
-- accepter une mission de démonstration ;
-- retrouver ses livraisons en cours ;
-- confirmer une livraison et voir le compteur de missions terminées.
-
-Les commandes de démonstration sont également sauvegardées dans le stockage local du navigateur (`localStorage`) afin de survivre à un rechargement sur le même navigateur. Cette sauvegarde n'est ni un compte utilisateur ni une base de données partagée : les données ne se synchronisent pas entre appareils ou entre le fleuriste et le livreur.
-
-Pour les tests, créez une commande depuis « Vue d'ensemble », puis ouvrez « Espace livreur » et acceptez la mission. Les données restent locales à cette session navigateur.
-
-
-## Serveur API (MVP)
-Prérequis : Node.js 20 ou plus récent. Aucune dépendance npm externe n'est requise.
+Modifier `.env` avec un e-mail administrateur et un mot de passe unique et robuste (au moins 16 caractères recommandé). Ne jamais partager ni commiter le fichier `.env`.
 
 ```bash
 npm start
 ```
 
-Copiez `.env.example` vers `.env` (par exemple `cp .env.example .env` sous macOS/Linux), puis configurez `PETAL_ADMIN_EMAIL` et `PETAL_ADMIN_PASSWORD` avec des identifiants uniques (mot de passe recommandé : au moins 16 caractères). Ne commitez jamais `.env`. Lancez ensuite `npm start` et ouvrez http://localhost:3000. Le serveur sert l'interface et l'API sur la même origine. En mode serveur, les commandes sont enregistrées dans `data/store.json` et partagées par les navigateurs qui utilisent cette même instance.
+Ouvrir ensuite http://localhost:3000. L'API et l'interface sont servies sur la même origine. Les données sont enregistrées dans `data/store.json`. Le chemin peut être déplacé avec `PETAL_STORE_PATH`, et le port avec `PORT`.
 
-### Routes disponibles
-- `GET /api/health` — état du service et configuration d'authentification
-- `POST /api/auth/login` — ouvre une session administrateur avec un cookie HttpOnly, SameSite=Strict et expiration après 8 heures
-- `GET /api/auth/me` — utilisateur de la session courante
-- `POST /api/auth/logout` — ferme la session
-- Toutes les routes métier API exigent une session valide. En production, le cookie ajoute l'attribut Secure (HTTPS requis).
-- `GET /api/orders` — liste des commandes
-- `POST /api/orders` — crée une commande après validation
-- `PATCH /api/orders/:id/assign` — assigne un livreur et passe la commande en livraison
-- `PATCH /api/orders/:id/status` — fait évoluer le statut selon le cycle `À préparer → En livraison → Livrée`; les retours en arrière sont refusés
-- `GET /api/couriers` — liste de démonstration des livreurs
+Sans identifiants administrateur configurés, l'API métier reste fermée et le serveur renvoie une erreur de configuration au login.
 
-Le fichier de données peut être déplacé en définissant `PETAL_STORE_PATH`. Le port est configurable via `PORT`. Les écritures API sont mises en file d'attente dans une même instance Node afin d'éviter les pertes de données lors de créations simultanées ; cela ne remplace pas une base de données et ne protège pas plusieurs instances. Lorsque le front-end est connecté à l'API, il actualise les commandes et le répertoire livreurs toutes les 15 secondes pour répercuter les changements sur les autres navigateurs ouverts.
+## API
 
-### Tests automatisés
+- `GET /api/health` — état du service et configuration.
+- `POST /api/auth/login` — ouvre une session administrateur.
+- `GET /api/auth/me` — utilisateur de la session courante.
+- `POST /api/auth/logout` — ferme la session.
+- `GET /api/orders` — liste les commandes.
+- `POST /api/orders` — crée une commande après validation.
+- `PATCH /api/orders/:id/assign` — assigne un livreur et démarre la livraison.
+- `PATCH /api/orders/:id/status` — fait évoluer le statut selon le cycle `À préparer → En livraison → Livrée`.
+- `GET /api/couriers` — liste de démonstration des livreurs.
+
+Les routes métier exigent une session valide. Le cookie est HttpOnly, SameSite=Strict et expire après 8 heures ; l'attribut Secure est ajouté quand `NODE_ENV=production`. Les tentatives de connexion sont limitées à 10 par adresse IP sur 15 minutes. Les mutations vérifient l'origine lorsqu'un en-tête Origin est présent. Les écritures sont sérialisées dans une seule instance Node afin de réduire les collisions, mais ce mécanisme ne remplace pas une base transactionnelle.
+
+## Tests et intégration continue
+
 ```bash
 npm test
 ```
 
-Les tests couvrent le health check, la lecture des commandes et livreurs, la création persistante et concurrente sans identifiants dupliqués, la validation des entrées, l'assignation, les transitions de statut, le service du front-end et la syntaxe du JavaScript embarqué. Le workflow GitHub Actions vérifie aussi la construction de l'image Docker. Le serveur applique également des en-têtes HTTP de sécurité de base (anti-sniffing, anti-iframe, politique de référent et permissions navigateur).
-
-### Limites et sécurité avant une mise en ligne
-Ce backend est une fondation MVP, pas encore un service de production. Le stockage JSON convient à une instance de démonstration et à des essais légers, mais pas à une forte concurrence ni à plusieurs instances. L'API exige maintenant une session administrateur configurée par variables d'environnement. Le modèle d'utilisateurs est encore limité à un compte admin : les comptes séparés et les autorisations fleuriste/livreur restent à construire. Il n'y a pas encore de base SQL, de limitation des tentatives de connexion, de journal d'audit ni de sauvegarde automatisée. Les connexions sont limitées à 10 tentatives par adresse IP sur une fenêtre de 15 minutes. Les mutations vérifient l'origine lorsqu'un en-tête Origin est présent; ce contrôle reste une protection complémentaire, pas un remplacement de l'ensemble des protections CSRF. **Ne pas exposer publiquement avec des données personnelles réelles avant d'ajouter ces protections.** Le front-end essaie l'API au démarrage et revient en mode démo local si elle est indisponible.
-
+GitHub Actions exécute les tests Node.js et construit l'image Docker. Les tests couvrent notamment les sessions, les identifiants incorrects, la déconnexion, le rejet des requêtes cross-origin, la limitation des tentatives, la validation des entrées, les créations concurrentes, les transitions de statut, l'échappement HTML et la syntaxe JavaScript de l'interface.
 
 ## Exécution avec Docker
 
-Construire et démarrer une instance locale avec stockage persistant :
+Créer le fichier `.env` comme décrit ci-dessus, puis :
 
 ```bash
 docker build -t petale:local .
 docker run --rm --env-file .env -p 3000:3000 -v petale-data:/app/data petale:local
 ```
 
-L'application est alors disponible sur http://localhost:3000. Le conteneur utilise l'utilisateur non privilégié `node`, expose le port 3000 et vérifie périodiquement le endpoint de santé. Le volume Docker conserve les données entre redémarrages. Pour arrêter le conteneur, utilisez `Ctrl+C` (ou arrêtez le conteneur en arrière-plan).
+Le volume `petale-data` conserve les données entre les redémarrages. Le conteneur utilise l'utilisateur non privilégié `node` et vérifie périodiquement le endpoint de santé.
 
-**Important :** le conteneur facilite l'exécution, mais ne rend pas l'application prête à être exposée sur Internet. Avant une vraie mise en production, il faut encore mettre en place l'authentification et les autorisations, une base de données transactionnelle, des sauvegardes, une configuration HTTPS et une politique de confidentialité adaptée.
+## Limites avant mise en production
+
+**Ne pas exposer publiquement cette version avec des données personnelles réelles.** Il s'agit d'un MVP, pas d'un produit SaaS fini. Avant une mise en production, il reste notamment à :
+
+1. Remplacer le fichier JSON par une base de données transactionnelle adaptée à plusieurs instances.
+2. Créer les comptes individuels, invitations et autorisations par rôle (administrateur, fleuriste, livreur).
+3. Ajouter journal d'audit, sauvegardes/restaurations, monitoring, gestion de session multi-utilisateur et procédures de récupération.
+4. Générer de véritables factures PDF avec numérotation et informations légales configurées.
+5. Connecter cartographie, géocodage, itinéraires, notifications et paiements via des intégrations sécurisées.
+6. Finaliser les mentions légales, la confidentialité, la conservation/suppression des données et les contrôles de sécurité.
+7. Déployer sur un hébergement HTTPS, configurer les secrets et effectuer des tests de charge et de sécurité.
+
+Le déploiement public n'a pas été effectué et la branche reste non fusionnée dans `main`.
