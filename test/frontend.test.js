@@ -66,3 +66,11 @@ test('dashboard KPIs and activity are derived from loaded orders', () => {
   assert.match(html, /function renderActivities\(\)\{const recent=orders\.slice\(\)/);
   assert.doesNotMatch(html, /Nouvelle commande reçue','Thomas Petit/);
 });
+
+
+test('frontend navigation is scoped to the authenticated account role', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /button\.hidden=user\.role==='livreur'\?button\.dataset\.view!=='courier':button\.dataset\.view==='courier'/);
+  assert.match(html, /navigate\(user\.role==='livreur'\?'courier':'dashboard'\)/);
+  assert.match(html, /button\.hidden=user\.role==='livreur'/);
+});
