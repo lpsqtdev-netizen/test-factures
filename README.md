@@ -66,7 +66,7 @@ Le fichier de données peut être déplacé en définissant `PETAL_STORE_PATH`. 
 npm test
 ```
 
-Les tests couvrent le health check, la lecture des commandes et livreurs, la création persistante et concurrente sans identifiants dupliqués, la validation des entrées, l'assignation, les transitions de statut, le service du front-end et la syntaxe du JavaScript embarqué.
+Les tests couvrent le health check, la lecture des commandes et livreurs, la création persistante et concurrente sans identifiants dupliqués, la validation des entrées, l'assignation, les transitions de statut, le service du front-end et la syntaxe du JavaScript embarqué. Le workflow GitHub Actions vérifie aussi la construction de l'image Docker.
 
 ### Limites et sécurité avant une mise en ligne
 Ce backend est une fondation MVP, pas encore un service de production. Le stockage JSON convient à une instance de démonstration et à des essais légers, mais pas à une forte concurrence ni à plusieurs instances. Il n'y a pas encore d'authentification, d'autorisation par rôle, de base SQL, de protection CSRF/rate limiting, de journal d'audit, ni de sauvegarde automatisée. **Ne pas exposer publiquement avec des données personnelles réelles avant d'ajouter ces protections.** Le front-end essaie l'API au démarrage et revient en mode démo local si elle est indisponible.
