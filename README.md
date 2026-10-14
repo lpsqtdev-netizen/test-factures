@@ -56,7 +56,7 @@ Puis ouvrir http://localhost:3000. Le serveur sert l'interface et l'API sur la m
 - `GET /api/orders` — liste des commandes
 - `POST /api/orders` — crée une commande après validation
 - `PATCH /api/orders/:id/assign` — assigne un livreur et passe la commande en livraison
-- `PATCH /api/orders/:id/status` — fait évoluer le statut d'une commande
+- `PATCH /api/orders/:id/status` — fait évoluer le statut selon le cycle `À préparer → En livraison → Livrée`; les retours en arrière sont refusés
 - `GET /api/couriers` — liste de démonstration des livreurs
 
 Le fichier de données peut être déplacé en définissant `PETAL_STORE_PATH`. Le port est configurable via `PORT`. Lorsque le front-end est connecté à l'API, il actualise les commandes et le répertoire livreurs toutes les 15 secondes pour répercuter les changements sur les autres navigateurs ouverts.
