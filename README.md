@@ -39,6 +39,8 @@ Sans identifiants administrateur configurés, l'API métier reste fermée et le 
 - `GET /api/health` — état du service et configuration.
 - `POST /api/auth/login` — ouvre une session administrateur.
 - `GET /api/auth/me` — utilisateur de la session courante.
+- `GET /api/users` / `POST /api/users` — consultation et création de comptes partenaires (administrateur uniquement).
+- `GET /api/orders/available` — missions ouvertes sans données de contact privées, réservé aux livreurs.
 - `POST /api/auth/logout` — ferme la session.
 - `GET /api/orders` — liste les commandes.
 - `GET /api/audit` — journal des 200 événements les plus récents (créations et changements de commande).
@@ -73,7 +75,7 @@ Le volume `petale-data` conserve les données entre les redémarrages. Le conten
 **Ne pas exposer publiquement cette version avec des données personnelles réelles.** Il s'agit d'un MVP, pas d'un produit SaaS fini. Avant une mise en production, il reste notamment à :
 
 1. Remplacer le fichier JSON par une base de données transactionnelle adaptée à plusieurs instances.
-2. Créer les comptes individuels, invitations et autorisations par rôle (administrateur, fleuriste, livreur).
+2. Compléter les invitations et la récupération de compte, puis auditer les autorisations par rôle (administrateur, fleuriste, livreur).
 3. Ajouter journal d'audit, sauvegardes/restaurations, monitoring, gestion de session multi-utilisateur et procédures de récupération.
 4. Générer de véritables factures PDF avec numérotation et informations légales configurées.
 5. Connecter cartographie, géocodage, itinéraires, notifications et paiements via des intégrations sécurisées.
