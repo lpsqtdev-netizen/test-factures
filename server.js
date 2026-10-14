@@ -146,8 +146,17 @@ function createServer() {
           } else {
             const status = safeString(body.status, 40);
             if (!ORDER_STATUSES.has(status)) return json(res, 422, { error: 'Statut de commande invalide.' });
-            if (order.status === 'Livrée' && status !== 'Livrée') return json(res, 409, { error: 'Une livraison terminée ne peut pas être réouverte par cette API.' });
-            if (status === 'En livraison' && !order.courier) order.courier = safeString(body.courier, 100);
+            if (status !== order.status) {
+              const allowedNext = { 'À préparer': ['En livraison'], 'En livraison': ['Livrée'], 'Livrée': [] };
+              if (!allowedNext[order.status]?.includes(status)) {
+                return json(res, 409, { error: 'Transition de statut impossible : ' + order.status + ' → ' + status + '.' });
+              }
+            }
+            if (status === 'En livraison' && !order.courier) {
+              const courier = safeString(body.courier, 100);
+              if (!courier) return json(res, 422, { error: 'Un livreur doit être renseigné avant le départ en livraison.' });
+              order.courier = courier;
+            }
             if (status === 'Livrée' && !order.courier) order.courier = 'Livreur non renseigné';
             order.status = status;
           }
