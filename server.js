@@ -106,6 +106,7 @@ function getDatabase() {
     fs.mkdirSync(path.dirname(path.resolve(DATABASE_PATH)), { recursive: true, mode: 0o700 });
     const Database = require('better-sqlite3');
     database = new Database(DATABASE_PATH);
+    fs.chmodSync(DATABASE_PATH, 0o600);
     database.pragma('journal_mode = WAL');
     database.pragma('busy_timeout = 5000');
     database.pragma('foreign_keys = ON');
