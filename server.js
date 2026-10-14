@@ -192,10 +192,19 @@ function createServer() {
       res.setHeader('X-Frame-Options', 'DENY');
       res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
       res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+      res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
       const url = new URL(req.url, 'http://localhost');
       if (url.pathname.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.origin) {
-        const origin = new URL(req.headers.origin);
-        if (origin.host !== req.headers.host) return json(res, 403, { error: 'Origine de requête refusée.' });
+        let origin;
+        try {
+          origin = new URL(req.headers.origin);
+        } catch {
+          return json(res, 403, { error: 'Origine de requête refusée.' });
+        }
+        if (!req.headers.host || origin.host !== req.headers.host) return json(res, 403, { error: 'Origine de requête refusée.' });
       }
       if (url.pathname.startsWith('/api/')) {
         if (req.method === 'OPTIONS') {
