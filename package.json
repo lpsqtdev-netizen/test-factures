@@ -1,0 +1,15 @@
+{
+  "name": "petale-florist-delivery",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Pétale — plateforme de coordination des livraisons florales",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
