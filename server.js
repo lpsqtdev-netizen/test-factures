@@ -100,11 +100,47 @@ async function loadStore() {
   }
   return structuredClone(seed);
 }
+const BACKUP_RETENTION = 7;
+const BACKUP_DIR = STORE_PATH + '.backups';
+
+async function createStoreBackup() {
+  let previous;
+  try {
+    previous = await fs.promises.readFile(STORE_PATH);
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
+  }
+  await fs.promises.mkdir(BACKUP_DIR, { recursive: true, mode: 0o700 });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupPath = path.join(BACKUP_DIR, 'store-' + stamp + '-' + crypto.randomBytes(3).toString('hex') + '.json');
+  const tempPath = backupPath + '.tmp';
+  try {
+    await fs.promises.writeFile(tempPath, previous, { mode: 0o600, flag: 'wx' });
+    await fs.promises.rename(tempPath, backupPath);
+  } finally {
+    await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+  }
+  const files = (await fs.promises.readdir(BACKUP_DIR))
+    .filter(name => /^store-.*\.json$/.test(name))
+    .sort()
+    .reverse();
+  await Promise.all(files.slice(BACKUP_RETENTION).map(name => fs.promises.unlink(path.join(BACKUP_DIR, name))));
+  return backupPath;
+}
+
 async function saveStore(store) {
   await fs.promises.mkdir(path.dirname(STORE_PATH), { recursive: true });
   const temp = STORE_PATH + '.' + process.pid + '.tmp';
-  await fs.promises.writeFile(temp, JSON.stringify(store, null, 2) + '\n', { mode: 0o600 });
-  await fs.promises.rename(temp, STORE_PATH);
+  try {
+    // Preserve the previous file before replacing it. Backups are local, private,
+    // and bounded so frequent order updates cannot fill the disk indefinitely.
+    await createStoreBackup();
+    await fs.promises.writeFile(temp, JSON.stringify(store, null, 2) + '\n', { mode: 0o600 });
+    await fs.promises.rename(temp, STORE_PATH);
+  } finally {
+    await fs.promises.rm(temp, { force: true }).catch(() => {});
+  }
 }
 function parseCookies(header = '') {
   return Object.fromEntries(header.split(';').map(part => part.trim()).filter(Boolean).map(part => {
