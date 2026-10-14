@@ -24,6 +24,9 @@ test('frontend provides a login gate and logout control for authenticated API ac
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.match(html, /petaleAuthGate/);
   assert.match(html, /petaleLoginForm/);
+  assert.match(html, /partnerPasswordForm/);
+  assert.match(html, /partnerPasswordPanel/);
+  assert.match(html, /\/api\/auth\/password/);
   assert.match(html, /\/api\/auth\/login/);
   assert.match(html, /\/api\/auth\/logout/);
   assert.match(html, /\/api\/auth\/me/);
