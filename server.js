@@ -105,7 +105,10 @@ async function saveStore(store) {
 function parseCookies(header = '') {
   return Object.fromEntries(header.split(';').map(part => part.trim()).filter(Boolean).map(part => {
     const index = part.indexOf('=');
-    return index < 0 ? [part, ''] : [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
+    if (index < 0) return [part, ''];
+    const key = part.slice(0, index);
+    try { return [key, decodeURIComponent(part.slice(index + 1))]; }
+    catch { return [key, '']; }
   }));
 }
 function passwordMatches(password, expected) {
@@ -126,6 +129,8 @@ function contentType(file) {
   return ({ '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' })[path.extname(file)] || 'application/octet-stream';
 }
 function createServer() {
+  // Hash the configured bootstrap password once per process/server, not on every login attempt.
+  const adminPasswordRecord = process.env.PETAL_ADMIN_PASSWORD ? passwordRecord(process.env.PETAL_ADMIN_PASSWORD) : '';
   // Serialize write requests so concurrent creates/updates cannot overwrite one another.
   let mutationQueue = Promise.resolve();
   const server = http.createServer((req, res) => {
@@ -173,8 +178,7 @@ function createServer() {
           const email = safeString(body.email, 254).toLowerCase();
           const password = typeof body.password === 'string' ? body.password : '';
           const configuredEmail = process.env.PETAL_ADMIN_EMAIL.toLowerCase();
-          const configuredRecord = process.env.PETAL_ADMIN_PASSWORD_RECORD;
-          const record = configuredRecord || (process.env.PETAL_ADMIN_PASSWORD ? passwordRecord(process.env.PETAL_ADMIN_PASSWORD) : '');
+          const record = adminPasswordRecord;
           // Constant-time password comparison is used after a normalized email comparison.
           const emailMatches = email === configuredEmail;
           const passwordOk = password.length <= 1024 && record && passwordMatches(password, record);
