@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-bookworm-slim
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -6,7 +6,9 @@ ENV PETAL_STORE_PATH=/app/data/store.json
 
 WORKDIR /app
 
-COPY --chown=node:node package.json server.js index.html ./
+COPY --chown=node:node package.json ./
+RUN npm install --omit=dev --no-audit --no-fund
+COPY --chown=node:node server.js index.html scripts ./ 
 RUN mkdir -p /app/data && chown -R node:node /app
 
 USER node
