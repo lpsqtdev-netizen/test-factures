@@ -28,3 +28,15 @@ Cette version est un prototype front-end : les données sont conservées uniquem
 
 ## Stack
 HTML, CSS et JavaScript natifs pour garder la première maquette légère et facilement inspectable.
+
+
+## Mise à jour — espace livreur
+Le prototype inclut maintenant une vue « Espace livreur » :
+- consulter les commandes encore à prendre en charge ;
+- accepter une mission de démonstration ;
+- retrouver ses livraisons en cours ;
+- confirmer une livraison et voir le compteur de missions terminées.
+
+Les commandes de démonstration sont également sauvegardées dans le stockage local du navigateur (`localStorage`) afin de survivre à un rechargement sur le même navigateur. Cette sauvegarde n'est ni un compte utilisateur ni une base de données partagée : les données ne se synchronisent pas entre appareils ou entre le fleuriste et le livreur.
+
+Pour les tests, créez une commande depuis « Vue d'ensemble », puis ouvrez « Espace livreur » et acceptez la mission. Les données restent locales à cette session navigateur.
