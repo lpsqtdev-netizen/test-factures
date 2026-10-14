@@ -26,7 +26,8 @@
     <button class="active" data-view="dashboard"><span class="ico">▦</span>Vue d'ensemble</button>
     <button data-view="orders"><span class="ico">♧</span>Commandes <span class="count" id="navCount">4</span></button>
     <button data-view="deliveries"><span class="ico">⌁</span>Livraisons</button>
-    <button data-view="couriers"><span class="ico">♙</span>Livreurs</button>\n    <button data-view="courier"><span class="ico">➤</span>Espace livreur</button>
+    <button data-view="couriers"><span class="ico">♙</span>Livreurs</button>
+    <button data-view="courier"><span class="ico">➤</span>Espace livreur</button>
     <button data-view="invoices"><span class="ico">▤</span>Facturation</button>
   </nav>
   <div class="nav-label">Outils</div>
@@ -130,7 +131,8 @@ function renderCourierPortal(){const available=orders.filter(o=>o.status==='À p
 document.addEventListener('click',e=>{const accept=e.target.closest('[data-courier-accept]');if(accept){(async()=>{const o=orders.find(x=>x.id===accept.dataset.courierAccept);if(!o||o.status!=='À préparer')return;try{if(apiOnline){const result=await apiRequest('/api/orders/'+encodeURIComponent(o.id)+'/assign',{method:'PATCH',body:JSON.stringify({courier:'Vous (livreur démo)'})});Object.assign(o,result.order);}else{o.status='En livraison';o.courier='Vous (livreur démo)';}persistDemoState();renderOrders();renderCourierPortal();showToast('Mission acceptée. Les informations de livraison sont dans votre tournée.');}catch(err){showToast('Impossible d’accepter la mission : '+err.message);}})();}const complete=e.target.closest('[data-courier-complete]');if(complete){(async()=>{const o=orders.find(x=>x.id===complete.dataset.courierComplete);if(!o||o.status!=='En livraison'||o.courier!=='Vous (livreur démo)')return;try{if(apiOnline){const result=await apiRequest('/api/orders/'+encodeURIComponent(o.id)+'/status',{method:'PATCH',body:JSON.stringify({status:'Livrée'})});Object.assign(o,result.order);}else{o.status='Livrée';}persistDemoState();renderOrders();renderCourierPortal();showToast('Livraison confirmée.');}catch(err){showToast('Impossible de confirmer la livraison : '+err.message);}})();}});
 const originalRenderOrders=renderOrders;renderOrders=function(){originalRenderOrders();persistDemoState();renderCourierPortal();};
 restoreDemoState();
-\nrenderOrders();renderCouriers();renderInvoices();renderActivities();renderIntegrations();\nconnectApi();
+renderOrders();renderCouriers();renderInvoices();renderActivities();renderIntegrations();
+connectApi();
 </script>
 </body>
 </html>
