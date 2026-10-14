@@ -184,6 +184,73 @@ test('prevents a delivery from moving backwards in its lifecycle', async () => {
   assert.match(response.body.error, /Transition de statut impossible/);
 });
 
+test('creates role accounts and limits courier access to available and assigned missions', async () => {
+  const createdUser = await request('/api/users', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: 'Camille Livreur',
+      email: 'camille.livreur@petale.test',
+      role: 'livreur',
+      password: 'Courier-Strong-Password-2026!'
+    })
+  });
+  assert.equal(createdUser.status, 201);
+  assert.equal(createdUser.body.user.role, 'livreur');
+  assert.equal('passwordHash' in createdUser.body.user, false);
+
+  const createdOrder = await request('/api/orders', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: 'Client du livreur',
+      address: '9 rue des Fleurs, Bordeaux',
+      slot: '15h – 17h',
+      price: 31,
+      phone: '0600000000',
+      notes: 'Sonner à l’entrée'
+    })
+  });
+  assert.equal(createdOrder.status, 201);
+
+  const login = await fetch(baseUrl + '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'camille.livreur@petale.test', password: 'Courier-Strong-Password-2026!' })
+  });
+  assert.equal(login.status, 200);
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const ownOrders = await fetch(baseUrl + '/api/orders', { headers: { Cookie: cookie } });
+  assert.deepEqual((await ownOrders.json()).orders, []);
+
+  const available = await fetch(baseUrl + '/api/orders/available', { headers: { Cookie: cookie } });
+  const availableOrders = (await available.json()).orders;
+  assert.ok(availableOrders.some(order => order.id === createdOrder.body.order.id));
+  assert.equal('phone' in availableOrders[0], false);
+  assert.equal('notes' in availableOrders[0], false);
+
+  const forbiddenCreate = await fetch(baseUrl + '/api/orders', {
+    method: 'POST',
+    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'No permission', address: '1 rue Test, Bordeaux', slot: '15h – 17h', price: 20 })
+  });
+  assert.equal(forbiddenCreate.status, 403);
+
+  const claim = await fetch(baseUrl + '/api/orders/' + createdOrder.body.order.id + '/assign', {
+    method: 'PATCH',
+    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ courier: 'Camille Livreur' })
+  });
+  assert.equal(claim.status, 200);
+  const afterClaim = await fetch(baseUrl + '/api/orders', { headers: { Cookie: cookie } });
+  const visible = (await afterClaim.json()).orders;
+  assert.equal(visible.length, 1);
+  assert.equal(visible[0].id, createdOrder.body.order.id);
+
+  const forbiddenUsers = await fetch(baseUrl + '/api/users', { headers: { Cookie: cookie } });
+  assert.equal(forbiddenUsers.status, 403);
+  const adminUsers = await request('/api/users');
+  assert.ok(adminUsers.body.users.some(user => user.email === 'camille.livreur@petale.test'));
+});
+
 test('throttles repeated invalid login attempts', async () => {
   let response;
   for (let index = 0; index < 11; index += 1) {
