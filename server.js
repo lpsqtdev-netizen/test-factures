@@ -216,7 +216,7 @@ function createServer() {
         if (url.pathname === '/api/auth/me' && req.method === 'GET') {
           return json(res, 200, { user: activeSession?.user || null });
         }
-        if (!process.env.PETAL_ADMIN_EMAIL || !process.env.PETAL_ADMIN_PASSWORD) {
+        if (!adminConfigured()) {
           return json(res, 503, { error: 'Authentification non configurée. Définissez PETAL_ADMIN_EMAIL et PETAL_ADMIN_PASSWORD.' });
         }
         if (!activeSession) return json(res, 401, { error: 'Connexion requise.' });
