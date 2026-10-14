@@ -58,6 +58,26 @@ test('protects API data with login sessions and rejects invalid credentials', as
   assert.equal(me.body.user.role, 'admin');
 });
 
+test('rejects cross-origin mutations and supports logout', async () => {
+  const crossOrigin = await request('/api/orders', {
+    method: 'POST',
+    headers: { Origin: 'https://attacker.invalid' },
+    body: JSON.stringify({ name: 'Zoé Martin', address: '3 rue des Fleurs, Bordeaux', slot: '15h – 17h', price: 25 })
+  });
+  assert.equal(crossOrigin.status, 403);
+
+  const login = await fetch(baseUrl + '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: process.env.PETAL_ADMIN_EMAIL, password: process.env.PETAL_ADMIN_PASSWORD })
+  });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const logout = await fetch(baseUrl + '/api/auth/logout', { method: 'POST', headers: { Cookie: cookie } });
+  assert.equal(logout.status, 200);
+  const me = await fetch(baseUrl + '/api/auth/me', { headers: { Cookie: cookie } });
+  assert.equal((await me.json()).user, null);
+});
+
 test('orders endpoint returns seeded orders and couriers', async () => {
   const orders = await request('/api/orders');
   const couriers = await request('/api/couriers');
