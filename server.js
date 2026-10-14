@@ -96,7 +96,17 @@ function contentType(file) {
   return ({ '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' })[path.extname(file)] || 'application/octet-stream';
 }
 function createServer() {
-  const server = http.createServer(async (req, res) => {
+  // Serialize write requests so concurrent creates/updates cannot overwrite one another.
+  let mutationQueue = Promise.resolve();
+  const server = http.createServer((req, res) => {
+    const run = () => handleRequest(req, res);
+    if (req.url?.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      mutationQueue = mutationQueue.then(run, run);
+    } else {
+      void run();
+    }
+  });
+  async function handleRequest(req, res) {
     try {
       const url = new URL(req.url, 'http://localhost');
       if (url.pathname.startsWith('/api/')) {
@@ -183,7 +193,7 @@ function createServer() {
       console.error(err);
       return json(res, 500, { error: 'Erreur interne du serveur.' });
     }
-  });
+  }
   return server;
 }
 
