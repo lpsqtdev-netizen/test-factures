@@ -376,6 +376,52 @@ test('allows partners to change passwords and revokes their other sessions', asy
   assert.ok(audit.body.events.some(event => event.action === 'user.password_changed' && event.entityId === created.body.user.id));
 });
 
+test('persists business settings separately for each florist account', async () => {
+  for (const account of [
+    { name: 'Boutique Profil A', email: 'settings.a@petale.test' },
+    { name: 'Boutique Profil B', email: 'settings.b@petale.test' }
+  ]) {
+    const created = await request('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({ ...account, role: 'fleuriste', password: 'Settings-Strong-Password-2026!' })
+    });
+    assert.equal(created.status, 201);
+  }
+  async function login(email) {
+    const response = await fetch(baseUrl + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'Settings-Strong-Password-2026!' })
+    });
+    assert.equal(response.status, 200);
+    return response.headers.get('set-cookie').split(';')[0];
+  }
+  const cookieA = await login('settings.a@petale.test');
+  const cookieB = await login('settings.b@petale.test');
+  const payload = { shopName: 'Fleurs Alpha', ownerName: 'Alice Alpha', email: 'contact@alpha.test', phone: '0556000000', pickupAddress: '1 rue des Fleurs, Bordeaux', siret: '123 456 789 00012', vatNumber: 'fr12345678901' };
+  const saved = await fetch(baseUrl + '/api/settings', {
+    method: 'POST',
+    headers: { Cookie: cookieA, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  assert.equal(saved.status, 200);
+  const profile = (await saved.json()).settings;
+  assert.equal(profile.siret, '12345678900012');
+  assert.equal(profile.vatNumber, 'FR12345678901');
+
+  const readA = await fetch(baseUrl + '/api/settings', { headers: { Cookie: cookieA } });
+  assert.equal((await readA.json()).settings.shopName, 'Fleurs Alpha');
+  const readB = await fetch(baseUrl + '/api/settings', { headers: { Cookie: cookieB } });
+  assert.equal((await readB.json()).settings, null);
+
+  const invalid = await fetch(baseUrl + '/api/settings', {
+    method: 'POST',
+    headers: { Cookie: cookieA, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...payload, siret: '1234' })
+  });
+  assert.equal(invalid.status, 422);
+});
+
 test('throttles repeated invalid login attempts', async () => {
   let response;
   for (let index = 0; index < 11; index += 1) {
