@@ -203,7 +203,10 @@ function syncPartnerPasswordPanel(){
 function renderAuthUser(user){
   currentUser=user;
   syncPartnerPasswordPanel();
+  $('[data-view]').forEach(button=>{button.hidden=user.role==='livreur'?button.dataset.view!=='courier':button.dataset.view==='courier';});
+  ['newOrderBtn','newOrderBtn2'].forEach(id=>{const button=document.getElementById(id);if(button)button.hidden=user.role==='livreur';});
   const inviteButton=document.getElementById('inviteCourierBtn');if(inviteButton)inviteButton.hidden=user.role!=='admin';
+  navigate(user.role==='livreur'?'courier':'dashboard');
   const roleLabel=({admin:'Admin',fleuriste:'Fleuriste',livreur:'Livreur'})[user.role]||user.role;
   let control=document.getElementById('petaleSessionControl');if(!control){control=document.createElement('div');control.id='petaleSessionControl';control.style.cssText='display:flex;align-items:center;gap:10px;margin-left:14px;font-size:11px;color:var(--muted)';document.querySelector('.topbar')?.appendChild(control);}
   control.innerHTML='<span>'+escapeHtml(user.name||user.email)+' · '+escapeHtml(roleLabel)+'</span><button id="petaleLogout" type="button" style="border:1px solid var(--line);background:var(--paper);padding:8px 10px;border-radius:9px;color:var(--ink);font-weight:700">Déconnexion</button>';
