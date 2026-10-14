@@ -66,6 +66,13 @@ test('rejects cross-origin mutations and supports logout', async () => {
   });
   assert.equal(crossOrigin.status, 403);
 
+  const malformedOrigin = await request('/api/orders', {
+    method: 'POST',
+    headers: { Origin: 'not a valid origin' },
+    body: JSON.stringify({ name: 'Zoé Martin', address: '3 rue des Fleurs, Bordeaux', slot: '15h – 17h', price: 25 })
+  });
+  assert.equal(malformedOrigin.status, 403);
+
   const login = await fetch(baseUrl + '/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -347,6 +354,8 @@ test('serves the frontend from the same origin', async () => {
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(response.headers.get('x-frame-options'), 'DENY');
   assert.equal(response.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
+  assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  assert.equal(response.headers.get('cross-origin-opener-policy'), 'same-origin');
   assert.match(await response.text(), /Pétale/);
 });
 
