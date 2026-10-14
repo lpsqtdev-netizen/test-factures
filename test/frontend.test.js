@@ -52,6 +52,8 @@ test('frontend exposes API-first startup and local demo fallback', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.match(html, /async function connectApi\(\)/);
   assert.match(html, /\/api\/orders/);
+  assert.match(html, /\/api\/settings/);
+  assert.match(html, /settingVatNumber/);
   assert.match(html, /mode démo local/i);
   assert.match(html, /id="view-courier"/);
 });
