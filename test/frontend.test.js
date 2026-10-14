@@ -13,6 +13,13 @@ test('inline frontend JavaScript parses without syntax errors', () => {
   for (const match of scripts) new vm.Script(match[1], { filename: 'index.html:inline-script' });
 });
 
+test('frontend escapes user-controlled text before inserting HTML', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /function escapeHtml\(value\)/);
+  assert.match(html, /escapeHtml\(o\.name\)/);
+  assert.match(html, /escapeHtml\(o\.address\)/);
+});
+
 test('frontend exposes API-first startup and local demo fallback', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.match(html, /async function connectApi\(\)/);
