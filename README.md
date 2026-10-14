@@ -70,3 +70,17 @@ Les tests couvrent le health check, la lecture des commandes et livreurs, la cr�
 
 ### Limites et sécurité avant une mise en ligne
 Ce backend est une fondation MVP, pas encore un service de production. Le stockage JSON convient à une instance de démonstration et à des essais légers, mais pas à une forte concurrence ni à plusieurs instances. Il n'y a pas encore d'authentification, d'autorisation par rôle, de base SQL, de protection CSRF/rate limiting, de journal d'audit, ni de sauvegarde automatisée. **Ne pas exposer publiquement avec des données personnelles réelles avant d'ajouter ces protections.** Le front-end essaie l'API au démarrage et revient en mode démo local si elle est indisponible.
+
+
+## Exécution avec Docker
+
+Construire et démarrer une instance locale avec stockage persistant :
+
+```bash
+docker build -t petale:local .
+docker run --rm -p 3000:3000 -v petale-data:/app/data petale:local
+```
+
+L'application est alors disponible sur http://localhost:3000. Le conteneur utilise l'utilisateur non privilégié `node`, expose le port 3000 et vérifie périodiquement le endpoint de santé. Le volume Docker conserve les données entre redémarrages. Pour arrêter le conteneur, utilisez `Ctrl+C` (ou arrêtez le conteneur en arrière-plan).
+
+**Important :** le conteneur facilite l'exécution, mais ne rend pas l'application prête à être exposée sur Internet. Avant une vraie mise en production, il faut encore mettre en place l'authentification et les autorisations, une base de données transactionnelle, des sauvegardes, une configuration HTTPS et une politique de confidentialité adaptée.
