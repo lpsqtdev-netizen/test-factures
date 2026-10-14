@@ -154,6 +154,11 @@ test('rejects invalid order input', async () => {
 });
 
 test('assigns an order and marks it delivered', async () => {
+  const courierAccount = await request('/api/users', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Livreur test', email: 'livreur.test@petale.test', role: 'livreur', password: 'Courier-Test-Password-2026!' })
+  });
+  assert.equal(courierAccount.status, 201);
   const assigned = await request('/api/orders/PET-0247/assign', {
     method: 'PATCH',
     body: JSON.stringify({ courier: 'Livreur test' })
@@ -464,4 +469,14 @@ test('creates private rotating backups before replacing the JSON store', async (
   assert.equal(JSON.parse(await fs.promises.readFile(process.env.PETAL_STORE_PATH, 'utf8')).backupTestMarker, 'version-9');
   const stats = await fs.promises.stat(path.join(backupDir, backups[0]));
   if (process.platform !== 'win32') assert.equal(stats.mode & 0o077, 0);
+});
+
+
+test('prevents dispatching a live order to a demo-only courier', async () => {
+  const response = await request('/api/orders/PET-0247/assign', {
+    method: 'PATCH',
+    body: JSON.stringify({ courier: 'Inès Robert' })
+  });
+  assert.equal(response.status, 422);
+  assert.match(response.body.error, /compte livreur créé/);
 });
