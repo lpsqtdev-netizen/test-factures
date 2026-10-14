@@ -32,6 +32,10 @@ test('SQLite mode imports legacy JSON, persists changes transactionally and repo
 
     imported.orders.unshift({ id: 'PET-7002', status: 'À préparer' });
     await serverModule.saveStore(imported);
+    const backupDir = databasePath + '.backups';
+    const backups = (await fs.promises.readdir(backupDir)).filter(name => name.endsWith('.sqlite'));
+    assert.equal(backups.length, 1);
+    if (process.platform !== 'win32') assert.equal((await fs.promises.stat(path.join(backupDir, backups[0]))).mode & 0o077, 0);
     serverModule.closeStore();
 
     const reopened = await serverModule.loadStore();
