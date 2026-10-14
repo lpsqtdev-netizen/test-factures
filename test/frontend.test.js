@@ -37,6 +37,14 @@ test('frontend handles courier roles without storing live API customer data loca
   assert.match(html, /Vérification de votre session/);
 });
 
+test('admin interface includes partner account creation controls', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /function openUserModal\(\)/);
+  assert.match(html, /\/api\/users/);
+  assert.match(html, /petaleUserRole/);
+  assert.match(html, /Livreur partenaire/);
+});
+
 test('frontend exposes API-first startup and local demo fallback', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.match(html, /async function connectApi\(\)/);
