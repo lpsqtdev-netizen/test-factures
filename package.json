@@ -5,8 +5,8 @@
   "description": "Pétale — plateforme de coordination des livraisons florales",
   "type": "commonjs",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
+    "start": "node --env-file=.env server.js",
+    "dev": "node --env-file=.env --watch server.js",
     "test": "node --test"
   },
   "engines": {
