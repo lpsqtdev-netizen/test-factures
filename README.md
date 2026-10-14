@@ -15,7 +15,7 @@ Pétale est un MVP de plateforme de coordination entre fleuristes indépendants 
 - Session administrateur, formulaire de connexion/déconnexion et routes métier protégées.
 - Image Docker non privilégiée, health check, volume persistant et sauvegardes locales tournantes du fichier JSON (7 versions maximum).
 
-Les données et personnes préremplies sont fictives. Les vues de cartographie, facturation et intégrations restent des démonstrations ; aucun paiement, itinéraire réel, email/SMS ou service Google/n8n n'est activé. Un utilitaire de migration vers SQLite est disponible, mais l'API utilise encore le fichier JSON tant que la bascule du stockage n'a pas été effectuée.
+Les données et personnes préremplies sont fictives. Les vues de cartographie, facturation et intégrations restent des démonstrations ; aucun paiement, itinéraire réel, email/SMS ou service Google/n8n n'est activé. Le serveur peut utiliser SQLite en mode mono-instance ; la migration initiale conserve le JSON d'origine.
 
 ## Démarrage local
 
@@ -31,7 +31,7 @@ Modifier `.env` avec un e-mail administrateur et un mot de passe unique et robus
 npm start
 ```
 
-Ouvrir ensuite http://localhost:3000. L'API et l'interface sont servies sur la même origine. Les données sont actuellement enregistrées dans `data/store.json`. Le chemin peut être déplacé avec `PETAL_STORE_PATH`, et le port avec `PORT`.
+Ouvrir ensuite http://localhost:3000. L'API et l'interface sont servies sur la même origine. Avec le `.env.example`, les données sont stockées dans `data/store.sqlite` via SQLite ; au premier démarrage, un éventuel `data/store.json` est importé sans être supprimé. Sans `PETAL_DATABASE_PATH`, le serveur conserve le mode JSON historique. Les chemins sont configurables avec `PETAL_DATABASE_PATH` et `PETAL_STORE_PATH`, et le port avec `PORT`.
 
 Sans identifiants administrateur configurés, l'API métier reste fermée et le serveur renvoie une erreur de configuration au login.
 
@@ -52,11 +52,11 @@ Sans identifiants administrateur configurés, l'API métier reste fermée et le 
 - `PATCH /api/orders/:id/status` — fait évoluer le statut selon le cycle `À préparer → En livraison → Livrée` et enregistre la date et l'acteur de confirmation.
 - `GET /api/couriers` — liste de démonstration des livreurs.
 
-Les routes métier exigent une session valide. Le cookie est HttpOnly, SameSite=Strict et expire après 8 heures ; l'attribut Secure est ajouté quand `NODE_ENV=production`. Les tentatives de connexion sont limitées à 10 par adresse IP sur 15 minutes. Les mutations vérifient l'origine lorsqu'un en-tête Origin est présent, y compris le rejet des en-têtes malformés. Le serveur ajoute une Content Security Policy, les protections anti-frame et les en-têtes de politique cross-origin. Les écritures sont sérialisées dans une seule instance Node afin de réduire les collisions, mais ce mécanisme ne remplace pas une base transactionnelle. Avant chaque remplacement du fichier, le serveur conserve une copie privée dans `store.json.backups/` (7 versions maximum). Pour restaurer une sauvegarde, lancer `node scripts/restore-store.js data/store.json.backups/store-....json data/store.json` après avoir choisi le fichier voulu. La commande valide la structure JSON et crée d'abord une sauvegarde de l'état courant. Les sauvegardes restent sur le même disque : elles ne remplacent pas une copie externalisée et testée.
+Les routes métier exigent une session valide. Le cookie est HttpOnly, SameSite=Strict et expire après 8 heures ; l'attribut Secure est ajouté quand `NODE_ENV=production`. Les tentatives de connexion sont limitées à 10 par adresse IP sur 15 minutes. Les mutations vérifient l'origine lorsqu'un en-tête Origin est présent, y compris le rejet des en-têtes malformés. Le serveur ajoute une Content Security Policy, les protections anti-frame et les en-têtes de politique cross-origin. Les écritures sont sérialisées dans une seule instance Node ; SQLite fournit des transactions pour chaque enregistrement d'état, mais le modèle snapshot n'est pas conçu pour plusieurs instances concurrentes. Avant chaque remplacement du fichier, le serveur conserve une copie privée dans `store.json.backups/` (7 versions maximum). Pour restaurer une sauvegarde, lancer `node scripts/restore-store.js data/store.json.backups/store-....json data/store.json` après avoir choisi le fichier voulu. La commande valide la structure JSON et crée d'abord une sauvegarde de l'état courant. Les sauvegardes restent sur le même disque : elles ne remplacent pas une copie externalisée et testée.
 
 ## Préparer une migration SQLite
 
-La migration crée une base SQLite avec une transaction, conserve le contenu métier complet dans un instantané JSON sérialisé, inscrit une version de schéma et refuse d'écraser un état cible différent. Le fichier JSON d'origine reste inchangé. Elle est volontairement distincte de l'application active : la bascule du serveur vers la base doit être faite et testée séparément.
+Le serveur prend en charge SQLite lorsque `PETAL_DATABASE_PATH` est défini. Il importe automatiquement un ancien `store.json` au premier démarrage, sans le supprimer. Chaque mise à jour de l'état est écrite dans une transaction SQLite et crée une sauvegarde privée tournante (7 versions maximum). L'utilitaire CLI permet aussi de préparer une base à partir d'un instantané JSON ; il conserve le fichier source, est idempotent et refuse d'écraser un état cible différent.
 
 ```bash
 npm install
@@ -88,7 +88,7 @@ Le volume `petale-data` conserve les données entre les redémarrages. Le conten
 
 **Ne pas exposer publiquement cette version avec des données personnelles réelles.** Il s'agit d'un MVP, pas d'un produit SaaS fini. Avant une mise en production, il reste notamment à :
 
-1. Basculer l'API du stockage JSON vers SQLite (la migration initiale et ses tests sont présents, mais l'API n'utilise pas encore cette base), puis choisir PostgreSQL ou un stockage partagé si plusieurs instances applicatives sont nécessaires.
+1. Utiliser SQLite pour une seule instance applicative ; choisir PostgreSQL ou un stockage partagé avec transactions adaptées avant de faire tourner plusieurs instances.
 2. Compléter les invitations et la récupération de compte, puis auditer les autorisations par rôle (administrateur, fleuriste, livreur).
 3. Ajouter une stratégie de sauvegarde externalisée avec tests réguliers de restauration, monitoring, gestion de session multi-utilisateur et procédures de récupération.
 4. Générer de véritables factures PDF avec numérotation et informations légales configurées.
