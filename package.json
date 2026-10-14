@@ -7,7 +7,11 @@
   "scripts": {
     "start": "node --env-file=.env server.js",
     "dev": "node --env-file=.env --watch server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "migrate:sqlite": "node scripts/migrate-store-to-sqlite.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "11.10.0"
   },
   "engines": {
     "node": ">=20"
