@@ -15,6 +15,7 @@ const loginAttempts = new Map();
 
 const seed = {
   audit: [],
+  users: [],
   orders: [
     { id: 'PET-0248', name: 'Élodie Bernard', address: '12 rue Fondaudège, Bordeaux', slot: '11h – 13h', price: 68, status: 'En livraison', art: '💐', bouquet: 'Bouquet de saison', courier: 'Lucas Moreau', createdAt: '2026-10-14T08:15:00.000Z' },
     { id: 'PET-0247', name: 'Thomas Petit', address: '5 place des Quinconces, Bordeaux', slot: '12h – 14h', price: 42, status: 'À préparer', art: '🌷', bouquet: 'Composition florale', courier: '', createdAt: '2026-10-14T08:40:00.000Z' },
@@ -91,6 +92,7 @@ async function loadStore() {
     const parsed = JSON.parse(await fs.promises.readFile(STORE_PATH, 'utf8'));
     if (parsed && Array.isArray(parsed.orders) && Array.isArray(parsed.couriers)) {
       if (!Array.isArray(parsed.audit)) parsed.audit = [];
+      if (!Array.isArray(parsed.users)) parsed.users = [];
       return parsed;
     }
   } catch (err) {
@@ -180,20 +182,23 @@ function createServer() {
           const email = safeString(body.email, 254).toLowerCase();
           const password = typeof body.password === 'string' ? body.password : '';
           const configuredEmail = process.env.PETAL_ADMIN_EMAIL.toLowerCase();
-          const record = adminPasswordRecord;
-          // Constant-time password comparison is used after a normalized email comparison.
-          const emailMatches = email === configuredEmail;
-          const passwordOk = password.length <= 1024 && record && passwordMatches(password, record);
-          if (!emailMatches || !passwordOk) {
+          const store = await loadStore();
+          const isAdmin = email === configuredEmail && password.length <= 1024 && adminPasswordRecord && passwordMatches(password, adminPasswordRecord);
+          const account = store.users.find(user => user.email === email);
+          const isAccountValid = password.length <= 1024 && account && passwordMatches(password, account.passwordHash);
+          if (!isAdmin && !isAccountValid) {
             attempt.count += 1;
             loginAttempts.set(ip, attempt);
             return json(res, 401, { error: 'Identifiants incorrects.' });
           }
           loginAttempts.delete(ip);
+          const user = isAdmin
+            ? { id: 'admin', email: configuredEmail, name: 'Administrateur', role: 'admin' }
+            : { id: account.id, email: account.email, name: account.name, role: account.role };
           const token = crypto.randomBytes(32).toString('base64url');
-          sessions.set(token, { user: { email: configuredEmail, role: 'admin' }, expiresAt: Date.now() + SESSION_TTL_MS });
+          sessions.set(token, { user, expiresAt: Date.now() + SESSION_TTL_MS });
           res.setHeader('Set-Cookie', sessionCookie(token, secureCookie));
-          return json(res, 200, { user: { email: configuredEmail, role: 'admin' } });
+          return json(res, 200, { user });
         }
         if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
           const token = parseCookies(req.headers.cookie).petale_session;
@@ -213,16 +218,48 @@ function createServer() {
         }
         if (!activeSession) return json(res, 401, { error: 'Connexion requise.' });
         const store = await loadStore();
+        if (url.pathname === '/api/users' && req.method === 'GET') {
+          if (activeSession.user.role !== 'admin') return json(res, 403, { error: 'Droits administrateur requis.' });
+          return json(res, 200, { users: store.users.map(({ passwordHash, ...user }) => user) });
+        }
+        if (url.pathname === '/api/users' && req.method === 'POST') {
+          if (activeSession.user.role !== 'admin') return json(res, 403, { error: 'Droits administrateur requis.' });
+          const body = await readBody(req);
+          const name = safeString(body.name, 100);
+          const email = safeString(body.email, 254).toLowerCase();
+          const password = typeof body.password === 'string' ? body.password : '';
+          const role = safeString(body.role, 30);
+          if (name.length < 2 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return json(res, 422, { error: 'Nom ou adresse e-mail invalide.' });
+          if (!['fleuriste', 'livreur'].includes(role)) return json(res, 422, { error: 'Le rôle doit être fleuriste ou livreur.' });
+          if (password.length < 12 || password.length > 1024) return json(res, 422, { error: 'Le mot de passe doit contenir entre 12 et 1024 caractères.' });
+          if (email === process.env.PETAL_ADMIN_EMAIL.toLowerCase() || store.users.some(user => user.email === email)) return json(res, 409, { error: 'Un compte existe déjà pour cette adresse e-mail.' });
+          const user = { id: crypto.randomUUID(), name, email, role, passwordHash: passwordRecord(password), createdAt: new Date().toISOString() };
+          store.users.push(user);
+          store.audit.unshift({ id: crypto.randomUUID(), action: 'user.created', entityId: user.id, actor: activeSession.user.email, at: new Date().toISOString(), role });
+          store.audit = store.audit.slice(0, 1000);
+          await saveStore(store);
+          const { passwordHash, ...publicUser } = user;
+          return json(res, 201, { user: publicUser });
+        }
+        if (url.pathname === '/api/orders/available' && req.method === 'GET') {
+          if (activeSession.user.role !== 'livreur') return json(res, 403, { error: 'Cette route est réservée aux livreurs.' });
+          const orders = store.orders.filter(order => order.status === 'À préparer' && !order.courier).map(({ id, name, address, slot, price, status, art, bouquet }) => ({ id, name, address, slot, price, status, art, bouquet }));
+          return json(res, 200, { orders });
+        }
         if (url.pathname === '/api/audit' && req.method === 'GET') {
           return json(res, 200, { events: store.audit.slice(0, 200) });
         }
         if (url.pathname === '/api/orders' && req.method === 'GET') {
-          return json(res, 200, { orders: store.orders });
+          const orders = activeSession.user.role === 'livreur'
+            ? store.orders.filter(order => order.courier === activeSession.user.name)
+            : store.orders;
+          return json(res, 200, { orders });
         }
         if (url.pathname === '/api/couriers' && req.method === 'GET') {
           return json(res, 200, { couriers: store.couriers });
         }
         if (url.pathname === '/api/orders' && req.method === 'POST') {
+          if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'Droits fleuriste requis.' });
           const body = await readBody(req);
           const checked = validateNewOrder(body);
           if (checked.error) return json(res, 422, { error: checked.error });
@@ -249,12 +286,22 @@ function createServer() {
           const body = await readBody(req);
           if (match[2] === 'assign') {
             const courier = safeString(body.courier, 100);
+            if (activeSession.user.role === 'livreur') {
+              if (courier !== activeSession.user.name) return json(res, 403, { error: 'Un livreur ne peut prendre que sa propre mission.' });
+              if (order.status !== 'À préparer' || order.courier) return json(res, 409, { error: 'Cette mission n’est plus disponible.' });
+            } else if (!['admin', 'fleuriste'].includes(activeSession.user.role)) {
+              return json(res, 403, { error: 'Droits insuffisants pour attribuer une mission.' });
+            }
             if (!courier) return json(res, 422, { error: 'Le nom du livreur est obligatoire.' });
             if (order.status === 'Livrée') return json(res, 409, { error: 'Cette commande est déjà livrée.' });
             order.courier = courier;
             order.status = 'En livraison';
           } else {
             const status = safeString(body.status, 40);
+            if (activeSession.user.role === 'livreur' && (order.courier !== activeSession.user.name || order.status !== 'En livraison' || status !== 'Livrée')) {
+              return json(res, 403, { error: 'Un livreur ne peut confirmer que ses propres livraisons en cours.' });
+            }
+            if (!['admin', 'fleuriste', 'livreur'].includes(activeSession.user.role)) return json(res, 403, { error: 'Droits insuffisants pour modifier le statut.' });
             if (!ORDER_STATUSES.has(status)) return json(res, 422, { error: 'Statut de commande invalide.' });
             if (status !== order.status) {
               const allowedNext = { 'À préparer': ['En livraison'], 'En livraison': ['Livrée'], 'Livrée': [] };
