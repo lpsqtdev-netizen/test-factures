@@ -7,7 +7,7 @@ Pétale est un MVP de plateforme de coordination entre fleuristes indépendants 
 - Tableau de bord fleuriste avec indicateurs calculés depuis les commandes chargées et fil d'activité dynamique.
 - Création de commandes avec destinataire, adresse, créneau, bouquet, montant et consignes.
 - Isolation des commandes et des paramètres de boutique par compte fleuriste ; l’administrateur conserve une vue globale.
-- Dispatch et attribution des missions.
+- Dispatch des missions vers des comptes livreurs partenaires enregistrés (les livreurs de démonstration ne peuvent pas recevoir de vraies commandes).
 - Espace livreur de démonstration pour accepter et terminer une livraison.
 - Annuaire des livreurs partenaires et vue tournée illustrative.
 - Registre de facturation de démonstration et export CSV.
@@ -60,7 +60,7 @@ Les routes métier exigent une session valide. Le cookie est HttpOnly, SameSite=
 npm test
 ```
 
-GitHub Actions exécute les tests Node.js et construit l'image Docker. Les tests couvrent notamment les sessions, le changement de mot de passe et la révocation des sessions, les identifiants incorrects, la déconnexion, l'isolation des commandes et des profils professionnels entre fleuristes, le rejet des requêtes cross-origin, la limitation des tentatives, la validation des entrées, les créations concurrentes, le journal d'audit, les transitions de statut, l'échappement HTML et la syntaxe JavaScript de l'interface.
+GitHub Actions exécute les tests Node.js et construit l'image Docker. Les tests couvrent notamment l'attribution réservée aux comptes livreurs enregistrés, les sessions, le changement de mot de passe et la révocation des sessions, les identifiants incorrects, la déconnexion, l'isolation des commandes et des profils professionnels entre fleuristes, le rejet des requêtes cross-origin, la limitation des tentatives, la validation des entrées, les créations concurrentes, le journal d'audit, les transitions de statut, l'échappement HTML et la syntaxe JavaScript de l'interface.
 
 ## Exécution avec Docker
 
