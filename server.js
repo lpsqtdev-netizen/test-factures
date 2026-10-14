@@ -229,7 +229,7 @@ function createServer() {
           const email = safeString(body.email, 254).toLowerCase();
           const password = typeof body.password === 'string' ? body.password : '';
           const role = safeString(body.role, 30);
-          if (name.length < 2 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return json(res, 422, { error: 'Nom ou adresse e-mail invalide.' });
+          if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(res, 422, { error: 'Nom ou adresse e-mail invalide.' });
           if (!['fleuriste', 'livreur'].includes(role)) return json(res, 422, { error: 'Le rôle doit être fleuriste ou livreur.' });
           if (password.length < 12 || password.length > 1024) return json(res, 422, { error: 'Le mot de passe doit contenir entre 12 et 1024 caractères.' });
           if (email === process.env.PETAL_ADMIN_EMAIL.toLowerCase() || store.users.some(user => user.email === email)) return json(res, 409, { error: 'Un compte existe déjà pour cette adresse e-mail.' });
