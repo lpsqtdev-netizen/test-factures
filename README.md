@@ -46,7 +46,7 @@ Sans identifiants administrateur configurés, l'API métier reste fermée et le 
 - `GET /api/audit` — journal des 200 événements les plus récents (créations et changements de commande).
 - `POST /api/orders` — crée une commande après validation.
 - `PATCH /api/orders/:id/assign` — assigne un livreur et démarre la livraison.
-- `PATCH /api/orders/:id/status` — fait évoluer le statut selon le cycle `À préparer → En livraison → Livrée`.
+- `PATCH /api/orders/:id/status` — fait évoluer le statut selon le cycle `À préparer → En livraison → Livrée` et enregistre la date et l'acteur de confirmation.
 - `GET /api/couriers` — liste de démonstration des livreurs.
 
 Les routes métier exigent une session valide. Le cookie est HttpOnly, SameSite=Strict et expire après 8 heures ; l'attribut Secure est ajouté quand `NODE_ENV=production`. Les tentatives de connexion sont limitées à 10 par adresse IP sur 15 minutes. Les mutations vérifient l'origine lorsqu'un en-tête Origin est présent. Les écritures sont sérialisées dans une seule instance Node afin de réduire les collisions, mais ce mécanisme ne remplace pas une base transactionnelle.
