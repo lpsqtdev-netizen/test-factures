@@ -417,13 +417,15 @@ function createServer() {
             }
             if (!courier) return json(res, 422, { error: 'Le nom du livreur est obligatoire.' });
             if (order.status === 'Livrée') return json(res, 409, { error: 'Cette commande est déjà livrée.' });
-            order.courier = courier;
+            let registeredCourier = null;
             if (activeSession.user.role === 'livreur') {
               order.courierId = activeSession.user.id;
             } else {
-              const registeredCourier = store.users.find(user => user.role === 'livreur' && user.name.toLowerCase() === courier.toLowerCase());
-              order.courierId = registeredCourier?.id || '';
+              registeredCourier = store.users.find(user => user.role === 'livreur' && user.name.toLowerCase() === courier.toLowerCase());
+              if (!registeredCourier) return json(res, 422, { error: 'Attribuez la commande à un compte livreur créé dans Pétale, pas à un livreur de démonstration.' });
+              order.courierId = registeredCourier.id;
             }
+            order.courier = registeredCourier?.name || courier;
             order.status = 'En livraison';
           } else {
             const status = safeString(body.status, 40);
