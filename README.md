@@ -6,6 +6,7 @@ Pétale est un MVP de plateforme de coordination entre fleuristes indépendants 
 
 - Tableau de bord fleuriste et suivi des commandes.
 - Création de commandes avec destinataire, adresse, créneau, bouquet, montant et consignes.
+- Isolation des commandes par compte fleuriste : un fleuriste ne consulte et ne modifie que ses commandes ; l’administrateur conserve une vue globale.
 - Dispatch et attribution des missions.
 - Espace livreur de démonstration pour accepter et terminer une livraison.
 - Annuaire des livreurs partenaires et vue tournée illustrative.
