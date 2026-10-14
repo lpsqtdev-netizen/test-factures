@@ -247,6 +247,8 @@ test('creates role accounts and limits courier access to available and assigned 
 
   const forbiddenUsers = await fetch(baseUrl + '/api/users', { headers: { Cookie: cookie } });
   assert.equal(forbiddenUsers.status, 403);
+  const forbiddenAudit = await fetch(baseUrl + '/api/audit', { headers: { Cookie: cookie } });
+  assert.equal(forbiddenAudit.status, 403);
   const adminUsers = await request('/api/users');
   assert.ok(adminUsers.body.users.some(user => user.email === 'camille.livreur@petale.test'));
 });
