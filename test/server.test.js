@@ -78,6 +78,22 @@ test('serializes concurrent order creation without duplicate IDs or lost orders'
   assert.ok(ids.every(id => listed.body.orders.some(order => order.id === id)));
 });
 
+test('rejects JSON primitives and oversized request bodies', async () => {
+  const primitive = await request('/api/orders', {
+    method: 'POST',
+    body: 'null'
+  });
+  assert.equal(primitive.status, 400);
+  assert.match(primitive.body.error, /doit être un objet/);
+
+  const oversized = await request('/api/orders', {
+    method: 'POST',
+    body: 'x'.repeat(33 * 1024)
+  });
+  assert.equal(oversized.status, 413);
+  assert.match(oversized.body.error, /trop volumineux/);
+});
+
 test('rejects invalid order input', async () => {
   const response = await request('/api/orders', {
     method: 'POST',
