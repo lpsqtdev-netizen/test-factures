@@ -49,10 +49,14 @@ Prérequis : Node.js 20 ou plus récent. Aucune dépendance npm externe n'est re
 npm start
 ```
 
-Puis ouvrir http://localhost:3000. Le serveur sert l'interface et l'API sur la même origine. En mode serveur, les commandes sont enregistrées dans `data/store.json` et partagées par les navigateurs qui utilisent cette même instance.
+Copiez `.env.example` vers `.env`, puis configurez `PETAL_ADMIN_EMAIL` et `PETAL_ADMIN_PASSWORD` avec des identifiants uniques (mot de passe recommandé : au moins 16 caractères). Ne commitez jamais `.env`. Lancez ensuite `npm start` et ouvrez http://localhost:3000. Le serveur sert l'interface et l'API sur la même origine. En mode serveur, les commandes sont enregistrées dans `data/store.json` et partagées par les navigateurs qui utilisent cette même instance.
 
 ### Routes disponibles
-- `GET /api/health` — état du service et mode de stockage
+- `GET /api/health` — état du service et configuration d'authentification
+- `POST /api/auth/login` — ouvre une session administrateur avec un cookie HttpOnly, SameSite=Strict et expiration après 8 heures
+- `GET /api/auth/me` — utilisateur de la session courante
+- `POST /api/auth/logout` — ferme la session
+- Toutes les routes métier API exigent une session valide. En production, le cookie ajoute l'attribut Secure (HTTPS requis).
 - `GET /api/orders` — liste des commandes
 - `POST /api/orders` — crée une commande après validation
 - `PATCH /api/orders/:id/assign` — assigne un livreur et passe la commande en livraison
@@ -69,7 +73,7 @@ npm test
 Les tests couvrent le health check, la lecture des commandes et livreurs, la création persistante et concurrente sans identifiants dupliqués, la validation des entrées, l'assignation, les transitions de statut, le service du front-end et la syntaxe du JavaScript embarqué. Le workflow GitHub Actions vérifie aussi la construction de l'image Docker. Le serveur applique également des en-têtes HTTP de sécurité de base (anti-sniffing, anti-iframe, politique de référent et permissions navigateur).
 
 ### Limites et sécurité avant une mise en ligne
-Ce backend est une fondation MVP, pas encore un service de production. Le stockage JSON convient à une instance de démonstration et à des essais légers, mais pas à une forte concurrence ni à plusieurs instances. Il n'y a pas encore d'authentification, d'autorisation par rôle, de base SQL, de protection CSRF/rate limiting, de journal d'audit, ni de sauvegarde automatisée. **Ne pas exposer publiquement avec des données personnelles réelles avant d'ajouter ces protections.** Le front-end essaie l'API au démarrage et revient en mode démo local si elle est indisponible.
+Ce backend est une fondation MVP, pas encore un service de production. Le stockage JSON convient à une instance de démonstration et à des essais légers, mais pas à une forte concurrence ni à plusieurs instances. L'API exige maintenant une session administrateur configurée par variables d'environnement. Le modèle d'utilisateurs est encore limité à un compte admin : les comptes séparés et les autorisations fleuriste/livreur restent à construire. Il n'y a pas encore de base SQL, de limitation des tentatives de connexion, de journal d'audit ni de sauvegarde automatisée. Les mutations vérifient l'origine lorsqu'un en-tête Origin est présent; ce contrôle reste une protection complémentaire, pas un remplacement de l'ensemble des protections CSRF. **Ne pas exposer publiquement avec des données personnelles réelles avant d'ajouter ces protections.** Le front-end essaie l'API au démarrage et revient en mode démo local si elle est indisponible.
 
 
 ## Exécution avec Docker
@@ -78,7 +82,7 @@ Construire et démarrer une instance locale avec stockage persistant :
 
 ```bash
 docker build -t petale:local .
-docker run --rm -p 3000:3000 -v petale-data:/app/data petale:local
+docker run --rm --env-file .env -p 3000:3000 -v petale-data:/app/data petale:local
 ```
 
 L'application est alors disponible sur http://localhost:3000. Le conteneur utilise l'utilisateur non privilégié `node`, expose le port 3000 et vérifie périodiquement le endpoint de santé. Le volume Docker conserve les données entre redémarrages. Pour arrêter le conteneur, utilisez `Ctrl+C` (ou arrêtez le conteneur en arrière-plan).
