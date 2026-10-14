@@ -256,7 +256,11 @@ function createServer() {
           return json(res, 200, { orders });
         }
         if (url.pathname === '/api/couriers' && req.method === 'GET') {
-          return json(res, 200, { couriers: store.couriers });
+          const registered = store.users.filter(user => user.role === 'livreur').map(user => ({
+            id: user.id, name: user.name, vehicle: 'À préciser', area: 'Zone à configurer', status: 'Disponible', jobs: 0, emoji: '🚲'
+          }));
+          const knownNames = new Set(store.couriers.map(courier => courier.name.toLowerCase()));
+          return json(res, 200, { couriers: [...store.couriers, ...registered.filter(courier => !knownNames.has(courier.name.toLowerCase()))] });
         }
         if (url.pathname === '/api/orders' && req.method === 'POST') {
           if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'Droits fleuriste requis.' });
