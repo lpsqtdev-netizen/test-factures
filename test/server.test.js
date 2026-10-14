@@ -8,14 +8,20 @@ const path = require('node:path');
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'petale-test-'));
 process.env.PETAL_STORE_PATH = path.join(tempDir, 'store.json');
+process.env.PETAL_ADMIN_EMAIL = 'admin@petale.test';
+process.env.PETAL_ADMIN_PASSWORD = 'Test-Admin-Password-2026!';
 const { createServer } = require('../server');
 
 let server;
 let baseUrl;
+let sessionCookie;
 before(async () => {
   server = createServer();
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   baseUrl = 'http://127.0.0.1:' + server.address().port;
+  const login = await fetch(baseUrl + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: process.env.PETAL_ADMIN_EMAIL, password: process.env.PETAL_ADMIN_PASSWORD }) });
+  assert.equal(login.status, 200);
+  sessionCookie = login.headers.get('set-cookie').split(';')[0];
 });
 after(async () => {
   await new Promise((resolve, reject) => server.close(err => err ? reject(err) : resolve()));
@@ -25,7 +31,7 @@ after(async () => {
 async function request(pathname, options = {}) {
   const response = await fetch(baseUrl + pathname, {
     ...options,
-    headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) }
+    headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(sessionCookie && options.auth !== false ? { Cookie: sessionCookie } : {}), ...(options.headers || {}) }
   });
   const body = await response.json();
   return { status: response.status, body };
@@ -36,6 +42,20 @@ test('health endpoint describes the API and storage mode', async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body.ok, true);
   assert.equal(response.body.storage, 'json-file');
+});
+
+test('protects API data with login sessions and rejects invalid credentials', async () => {
+  const unauthenticated = await request('/api/orders', { auth: false });
+  assert.equal(unauthenticated.status, 401);
+  const badLogin = await request('/api/auth/login', {
+    auth: false,
+    method: 'POST',
+    body: JSON.stringify({ email: process.env.PETAL_ADMIN_EMAIL, password: 'incorrect password' })
+  });
+  assert.equal(badLogin.status, 401);
+  const me = await request('/api/auth/me');
+  assert.equal(me.status, 200);
+  assert.equal(me.body.user.role, 'admin');
 });
 
 test('orders endpoint returns seeded orders and couriers', async () => {
