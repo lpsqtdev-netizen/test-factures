@@ -160,6 +160,8 @@ test('assigns an order and marks it delivered', async () => {
   });
   assert.equal(delivered.status, 200);
   assert.equal(delivered.body.order.status, 'Livrée');
+  assert.match(delivered.body.order.deliveredAt, /^\\d{4}-\\d{2}-\\d{2}T/);
+  assert.equal(delivered.body.order.deliveredBy, process.env.PETAL_ADMIN_EMAIL);
 });
 
 test('rejects unknown orders and invalid status transitions', async () => {
