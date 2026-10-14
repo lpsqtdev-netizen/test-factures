@@ -236,6 +236,7 @@ function createServer() {
           if (!['fleuriste', 'livreur'].includes(role)) return json(res, 422, { error: 'Le rôle doit être fleuriste ou livreur.' });
           if (password.length < 12 || password.length > 1024) return json(res, 422, { error: 'Le mot de passe doit contenir entre 12 et 1024 caractères.' });
           if (email === process.env.PETAL_ADMIN_EMAIL.toLowerCase() || store.users.some(user => user.email === email)) return json(res, 409, { error: 'Un compte existe déjà pour cette adresse e-mail.' });
+          if (role === 'livreur' && (store.couriers.some(courier => courier.name.toLowerCase() === name.toLowerCase()) || store.users.some(user => user.role === 'livreur' && user.name.toLowerCase() === name.toLowerCase()))) return json(res, 409, { error: 'Ce nom de livreur est déjà utilisé. Choisissez un nom distinct.' });
           const user = { id: crypto.randomUUID(), name, email, role, passwordHash: passwordRecord(password), createdAt: new Date().toISOString() };
           store.users.push(user);
           store.audit.unshift({ id: crypto.randomUUID(), action: 'user.created', entityId: user.id, actor: activeSession.user.email, at: new Date().toISOString(), role });
@@ -255,7 +256,7 @@ function createServer() {
         }
         if (url.pathname === '/api/orders' && req.method === 'GET') {
           const orders = activeSession.user.role === 'livreur'
-            ? store.orders.filter(order => order.courier === activeSession.user.name)
+            ? store.orders.filter(order => order.courierId === activeSession.user.id)
             : store.orders;
           return json(res, 200, { orders });
         }
@@ -303,10 +304,16 @@ function createServer() {
             if (!courier) return json(res, 422, { error: 'Le nom du livreur est obligatoire.' });
             if (order.status === 'Livrée') return json(res, 409, { error: 'Cette commande est déjà livrée.' });
             order.courier = courier;
+            if (activeSession.user.role === 'livreur') {
+              order.courierId = activeSession.user.id;
+            } else {
+              const registeredCourier = store.users.find(user => user.role === 'livreur' && user.name.toLowerCase() === courier.toLowerCase());
+              order.courierId = registeredCourier?.id || '';
+            }
             order.status = 'En livraison';
           } else {
             const status = safeString(body.status, 40);
-            if (activeSession.user.role === 'livreur' && (order.courier !== activeSession.user.name || order.status !== 'En livraison' || status !== 'Livrée')) {
+            if (activeSession.user.role === 'livreur' && (order.courierId !== activeSession.user.id || order.status !== 'En livraison' || status !== 'Livrée')) {
               return json(res, 403, { error: 'Un livreur ne peut confirmer que ses propres livraisons en cours.' });
             }
             if (!['admin', 'fleuriste', 'livreur'].includes(activeSession.user.role)) return json(res, 403, { error: 'Droits insuffisants pour modifier le statut.' });
