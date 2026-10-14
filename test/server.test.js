@@ -163,12 +163,13 @@ test('assigns an order and marks it delivered', async () => {
   assert.equal(assigned.body.order.courier, 'Livreur test');
   const delivered = await request('/api/orders/PET-0247/status', {
     method: 'PATCH',
-    body: JSON.stringify({ status: 'Livrée' })
+    body: JSON.stringify({ status: 'Livrée', deliveryNote: 'Remis en main propre au destinataire.' })
   });
   assert.equal(delivered.status, 200);
   assert.equal(delivered.body.order.status, 'Livrée');
   assert.match(delivered.body.order.deliveredAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(delivered.body.order.deliveredBy, process.env.PETAL_ADMIN_EMAIL);
+  assert.equal(delivered.body.order.deliveryNote, 'Remis en main propre au destinataire.');
 });
 
 test('rejects unknown orders and invalid status transitions', async () => {
