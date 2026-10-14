@@ -301,3 +301,21 @@ test('serves the frontend from the same origin', async () => {
   assert.equal(response.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
   assert.match(await response.text(), /Pétale/);
 });
+
+
+test('creates private rotating backups before replacing the JSON store', async () => {
+  const original = await fs.promises.readFile(process.env.PETAL_STORE_PATH, 'utf8');
+  const parsed = JSON.parse(original);
+  await require('../server').saveStore(parsed);
+  const changed = { ...parsed, backupTestMarker: 'new-version' };
+  await require('../server').saveStore(changed);
+  const backupDir = process.env.PETAL_STORE_PATH + '.backups';
+  const backups = (await fs.promises.readdir(backupDir)).filter(name => /^store-.*\\.json$/.test(name));
+  assert.ok(backups.length >= 1);
+  assert.ok(backups.length <= 7);
+  const newestBackup = JSON.parse(await fs.promises.readFile(path.join(backupDir, backups.sort().at(-1)), 'utf8'));
+  assert.equal(newestBackup.backupTestMarker, undefined);
+  assert.equal(JSON.parse(await fs.promises.readFile(process.env.PETAL_STORE_PATH, 'utf8')).backupTestMarker, 'new-version');
+  const stats = await fs.promises.stat(path.join(backupDir, backups[0]));
+  if (process.platform !== 'win32') assert.equal(stats.mode & 0o077, 0);
+});
