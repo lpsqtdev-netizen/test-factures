@@ -355,15 +355,15 @@ test('creates private rotating backups before replacing the JSON store', async (
   const original = await fs.promises.readFile(process.env.PETAL_STORE_PATH, 'utf8');
   const parsed = JSON.parse(original);
   await require('../server').saveStore(parsed);
-  const changed = { ...parsed, backupTestMarker: 'new-version' };
-  await require('../server').saveStore(changed);
+  for (let index = 0; index < 10; index += 1) {
+    await require('../server').saveStore({ ...parsed, backupTestMarker: 'version-' + index });
+  }
   const backupDir = process.env.PETAL_STORE_PATH + '.backups';
   const backups = (await fs.promises.readdir(backupDir)).filter(name => /^store-.*\.json$/.test(name));
-  assert.ok(backups.length >= 1);
-  assert.ok(backups.length <= 7);
+  assert.equal(backups.length, 7, 'backup rotation should retain only the latest 7 snapshots');
   const newestBackup = JSON.parse(await fs.promises.readFile(path.join(backupDir, backups.sort().at(-1)), 'utf8'));
-  assert.equal(newestBackup.backupTestMarker, undefined);
-  assert.equal(JSON.parse(await fs.promises.readFile(process.env.PETAL_STORE_PATH, 'utf8')).backupTestMarker, 'new-version');
+  assert.equal(newestBackup.backupTestMarker, 'version-8');
+  assert.equal(JSON.parse(await fs.promises.readFile(process.env.PETAL_STORE_PATH, 'utf8')).backupTestMarker, 'version-9');
   const stats = await fs.promises.stat(path.join(backupDir, backups[0]));
   if (process.platform !== 'win32') assert.equal(stats.mode & 0o077, 0);
 });
