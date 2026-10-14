@@ -293,7 +293,9 @@ function createServer() {
         if (url.pathname === '/api/orders' && req.method === 'GET') {
           const orders = activeSession.user.role === 'livreur'
             ? store.orders.filter(order => order.courierId === activeSession.user.id)
-            : store.orders;
+            : activeSession.user.role === 'fleuriste'
+              ? store.orders.filter(order => order.createdBy === activeSession.user.id)
+              : store.orders;
           return json(res, 200, { orders });
         }
         if (url.pathname === '/api/couriers' && req.method === 'GET') {
@@ -315,6 +317,7 @@ function createServer() {
             status: 'À préparer',
             art: checked.value.bouquet.includes('Plante') ? '🪴' : checked.value.bouquet.includes('Composition') ? '🌷' : '💐',
             courier: '',
+            createdBy: activeSession.user.id,
             createdAt: new Date().toISOString()
           };
           store.orders.unshift(item);
@@ -328,6 +331,9 @@ function createServer() {
           const id = match[1];
           const order = store.orders.find(item => item.id === id);
           if (!order) return json(res, 404, { error: 'Commande introuvable.' });
+          if (activeSession.user.role === 'fleuriste' && order.createdBy !== activeSession.user.id) {
+            return json(res, 403, { error: 'Un fleuriste ne peut gérer que ses propres commandes.' });
+          }
           const body = await readBody(req);
           if (match[2] === 'assign') {
             const courier = safeString(body.courier, 100);
