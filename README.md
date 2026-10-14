@@ -12,7 +12,7 @@ Pétale est un MVP de plateforme de coordination entre fleuristes indépendants 
 - Registre de facturation de démonstration et export CSV.
 - Actualisation périodique des commandes entre navigateurs connectés à la même instance.
 - Session administrateur, formulaire de connexion/déconnexion et routes métier protégées.
-- Image Docker non privilégiée, health check et volume persistant.
+- Image Docker non privilégiée, health check, volume persistant et sauvegardes locales tournantes du fichier JSON (7 versions maximum).
 
 Les données et personnes préremplies sont fictives. Les vues de cartographie, facturation et intégrations restent des démonstrations ; aucun paiement, itinéraire réel, email/SMS ou service Google/n8n n'est activé.
 
@@ -49,7 +49,7 @@ Sans identifiants administrateur configurés, l'API métier reste fermée et le 
 - `PATCH /api/orders/:id/status` — fait évoluer le statut selon le cycle `À préparer → En livraison → Livrée` et enregistre la date et l'acteur de confirmation.
 - `GET /api/couriers` — liste de démonstration des livreurs.
 
-Les routes métier exigent une session valide. Le cookie est HttpOnly, SameSite=Strict et expire après 8 heures ; l'attribut Secure est ajouté quand `NODE_ENV=production`. Les tentatives de connexion sont limitées à 10 par adresse IP sur 15 minutes. Les mutations vérifient l'origine lorsqu'un en-tête Origin est présent. Les écritures sont sérialisées dans une seule instance Node afin de réduire les collisions, mais ce mécanisme ne remplace pas une base transactionnelle.
+Les routes métier exigent une session valide. Le cookie est HttpOnly, SameSite=Strict et expire après 8 heures ; l'attribut Secure est ajouté quand `NODE_ENV=production`. Les tentatives de connexion sont limitées à 10 par adresse IP sur 15 minutes. Les mutations vérifient l'origine lorsqu'un en-tête Origin est présent. Les écritures sont sérialisées dans une seule instance Node afin de réduire les collisions, mais ce mécanisme ne remplace pas une base transactionnelle. Avant chaque remplacement du fichier, le serveur conserve une copie privée dans `store.json.backups/` (7 versions maximum). Les sauvegardes restent sur le même disque : elles ne remplacent pas une copie externalisée et testée.
 
 ## Tests et intégration continue
 
@@ -76,7 +76,7 @@ Le volume `petale-data` conserve les données entre les redémarrages. Le conten
 
 1. Remplacer le fichier JSON par une base de données transactionnelle adaptée à plusieurs instances.
 2. Compléter les invitations et la récupération de compte, puis auditer les autorisations par rôle (administrateur, fleuriste, livreur).
-3. Ajouter journal d'audit, sauvegardes/restaurations, monitoring, gestion de session multi-utilisateur et procédures de récupération.
+3. Ajouter une stratégie de sauvegarde externalisée avec tests de restauration, monitoring, gestion de session multi-utilisateur et procédures de récupération.
 4. Générer de véritables factures PDF avec numérotation et informations légales configurées.
 5. Connecter cartographie, géocodage, itinéraires, notifications et paiements via des intégrations sécurisées.
 6. Finaliser les mentions légales, la confidentialité, la conservation/suppression des données et les contrôles de sécurité.
