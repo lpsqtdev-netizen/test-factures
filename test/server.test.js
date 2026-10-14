@@ -310,7 +310,7 @@ test('creates private rotating backups before replacing the JSON store', async (
   const changed = { ...parsed, backupTestMarker: 'new-version' };
   await require('../server').saveStore(changed);
   const backupDir = process.env.PETAL_STORE_PATH + '.backups';
-  const backups = (await fs.promises.readdir(backupDir)).filter(name => /^store-.*\\.json$/.test(name));
+  const backups = (await fs.promises.readdir(backupDir)).filter(name => /^store-.*\.json$/.test(name));
   assert.ok(backups.length >= 1);
   assert.ok(backups.length <= 7);
   const newestBackup = JSON.parse(await fs.promises.readFile(path.join(backupDir, backups.sort().at(-1)), 'utf8'));
