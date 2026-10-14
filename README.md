@@ -59,7 +59,7 @@ Puis ouvrir http://localhost:3000. Le serveur sert l'interface et l'API sur la m
 - `PATCH /api/orders/:id/status` — fait évoluer le statut d'une commande
 - `GET /api/couriers` — liste de démonstration des livreurs
 
-Le fichier de données peut être déplacé en définissant `PETAL_STORE_PATH`. Le port est configurable via `PORT`.
+Le fichier de données peut être déplacé en définissant `PETAL_STORE_PATH`. Le port est configurable via `PORT`. Lorsque le front-end est connecté à l'API, il actualise les commandes et le répertoire livreurs toutes les 15 secondes pour répercuter les changements sur les autres navigateurs ouverts.
 
 ### Tests automatisés
 ```bash
