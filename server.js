@@ -14,6 +14,7 @@ const sessions = new Map();
 const loginAttempts = new Map();
 
 const seed = {
+  audit: [],
   orders: [
     { id: 'PET-0248', name: 'Élodie Bernard', address: '12 rue Fondaudège, Bordeaux', slot: '11h – 13h', price: 68, status: 'En livraison', art: '💐', bouquet: 'Bouquet de saison', courier: 'Lucas Moreau', createdAt: '2026-10-14T08:15:00.000Z' },
     { id: 'PET-0247', name: 'Thomas Petit', address: '5 place des Quinconces, Bordeaux', slot: '12h – 14h', price: 42, status: 'À préparer', art: '🌷', bouquet: 'Composition florale', courier: '', createdAt: '2026-10-14T08:40:00.000Z' },
@@ -89,6 +90,7 @@ async function loadStore() {
   try {
     const parsed = JSON.parse(await fs.promises.readFile(STORE_PATH, 'utf8'));
     if (parsed && Array.isArray(parsed.orders) && Array.isArray(parsed.couriers)) {
+      if (!Array.isArray(parsed.audit)) parsed.audit = [];
       return parsed;
     }
   } catch (err) {
@@ -211,6 +213,9 @@ function createServer() {
         }
         if (!activeSession) return json(res, 401, { error: 'Connexion requise.' });
         const store = await loadStore();
+        if (url.pathname === '/api/audit' && req.method === 'GET') {
+          return json(res, 200, { events: store.audit.slice(0, 200) });
+        }
         if (url.pathname === '/api/orders' && req.method === 'GET') {
           return json(res, 200, { orders: store.orders });
         }
@@ -231,6 +236,8 @@ function createServer() {
             createdAt: new Date().toISOString()
           };
           store.orders.unshift(item);
+          store.audit.unshift({ id: crypto.randomUUID(), action: 'order.created', entityId: item.id, actor: activeSession.user.email, at: new Date().toISOString() });
+          store.audit = store.audit.slice(0, 1000);
           await saveStore(store);
           return json(res, 201, { order: item });
         }
@@ -263,6 +270,8 @@ function createServer() {
             if (status === 'Livrée' && !order.courier) order.courier = 'Livreur non renseigné';
             order.status = status;
           }
+          store.audit.unshift({ id: crypto.randomUUID(), action: match[2] === 'assign' ? 'order.assigned' : 'order.status_changed', entityId: order.id, actor: activeSession.user.email, at: new Date().toISOString(), status: order.status, courier: order.courier || '' });
+          store.audit = store.audit.slice(0, 1000);
           await saveStore(store);
           return json(res, 200, { order });
         }
