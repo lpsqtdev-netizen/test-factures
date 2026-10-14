@@ -189,9 +189,24 @@ async function createStoreBackup() {
   return backupPath;
 }
 
+async function createDatabaseBackup(db) {
+  const backupDir = DATABASE_PATH + '.backups';
+  await fs.promises.mkdir(backupDir, { recursive: true, mode: 0o700 });
+  const stamp = String(Date.now()).padStart(13, '0');
+  const backupPath = path.join(backupDir, 'store-' + stamp + '-' + process.pid + '-' + crypto.randomBytes(4).toString('hex') + '.sqlite');
+  await db.backup(backupPath);
+  await fs.promises.chmod(backupPath, 0o600);
+  const files = (await fs.promises.readdir(backupDir)).filter(name => /^store-.*\\.sqlite$/.test(name)).sort().reverse();
+  await Promise.all(files.slice(BACKUP_RETENTION).map(name => fs.promises.unlink(path.join(backupDir, name))));
+  return backupPath;
+}
+
 async function saveStore(store) {
   const db = getDatabase();
   if (db) {
+    if (db.prepare('SELECT 1 FROM app_state WHERE id = 1').get()) {
+      await createDatabaseBackup(db);
+    }
     const payload = JSON.stringify(store);
     const now = new Date().toISOString();
     const digest = crypto.createHash('sha256').update(payload).digest('hex');
