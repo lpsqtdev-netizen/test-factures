@@ -4,6 +4,8 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const DATABASE_PATH = process.env.PETAL_DATABASE_PATH || '';
+let database = null;
 
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT || 3000);
@@ -88,19 +90,73 @@ async function readBody(req) {
   }
   return parsed;
 }
-async function loadStore() {
+function normalizeStore(parsed) {
+  if (parsed && Array.isArray(parsed.orders) && Array.isArray(parsed.couriers)) {
+    if (!Array.isArray(parsed.audit)) parsed.audit = [];
+    if (!Array.isArray(parsed.users)) parsed.users = [];
+    if (!parsed.settingsByUser || typeof parsed.settingsByUser !== 'object' || Array.isArray(parsed.settingsByUser)) parsed.settingsByUser = {};
+    return parsed;
+  }
+  return null;
+}
+
+function getDatabase() {
+  if (!DATABASE_PATH) return null;
+  if (!database) {
+    fs.mkdirSync(path.dirname(path.resolve(DATABASE_PATH)), { recursive: true, mode: 0o700 });
+    const Database = require('better-sqlite3');
+    database = new Database(DATABASE_PATH);
+    database.pragma('journal_mode = WAL');
+    database.pragma('busy_timeout = 5000');
+    database.pragma('foreign_keys = ON');
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS app_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        payload TEXT NOT NULL,
+        source_sha256 TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        applied_at TEXT NOT NULL
+      );
+    `);
+  }
+  return database;
+}
+
+async function loadJsonStore() {
   try {
-    const parsed = JSON.parse(await fs.promises.readFile(STORE_PATH, 'utf8'));
-    if (parsed && Array.isArray(parsed.orders) && Array.isArray(parsed.couriers)) {
-      if (!Array.isArray(parsed.audit)) parsed.audit = [];
-      if (!Array.isArray(parsed.users)) parsed.users = [];
-      if (!parsed.settingsByUser || typeof parsed.settingsByUser !== 'object' || Array.isArray(parsed.settingsByUser)) parsed.settingsByUser = {};
-      return parsed;
-    }
+    const parsed = normalizeStore(JSON.parse(await fs.promises.readFile(STORE_PATH, 'utf8')));
+    if (parsed) return parsed;
   } catch (err) {
     if (err.code !== 'ENOENT' && !(err instanceof SyntaxError)) throw err;
   }
   return structuredClone(seed);
+}
+
+async function loadStore() {
+  const db = getDatabase();
+  if (!db) return loadJsonStore();
+  const row = db.prepare('SELECT payload FROM app_state WHERE id = 1').get();
+  if (row) {
+    const parsed = normalizeStore(JSON.parse(row.payload));
+    if (!parsed) throw new Error('État SQLite invalide : commandes et livreurs doivent être des listes.');
+    return parsed;
+  }
+  // First boot in SQLite mode imports an existing JSON store without deleting it.
+  const initial = await loadJsonStore();
+  const payload = JSON.stringify(initial);
+  const now = new Date().toISOString();
+  const insert = db.transaction(() => {
+    db.prepare('INSERT INTO app_state (id, payload, source_sha256, updated_at) VALUES (1, ?, ?, ?)')
+      .run(payload, crypto.createHash('sha256').update(payload).digest('hex'), now);
+    db.prepare('INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (1, ?, ?)')
+      .run('json-store-import', now);
+  });
+  insert();
+  return initial;
 }
 const BACKUP_RETENTION = 7;
 const BACKUP_DIR = STORE_PATH + '.backups';
@@ -134,6 +190,23 @@ async function createStoreBackup() {
 }
 
 async function saveStore(store) {
+  const db = getDatabase();
+  if (db) {
+    const payload = JSON.stringify(store);
+    const now = new Date().toISOString();
+    const digest = crypto.createHash('sha256').update(payload).digest('hex');
+    const write = db.transaction(() => {
+      db.prepare(`INSERT INTO app_state (id, payload, source_sha256, updated_at)
+        VALUES (1, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET payload = excluded.payload,
+          source_sha256 = excluded.source_sha256, updated_at = excluded.updated_at`)
+        .run(payload, digest, now);
+      db.prepare('INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (1, ?, ?)')
+        .run('json-store-import', now);
+    });
+    write();
+    return;
+  }
   await fs.promises.mkdir(path.dirname(STORE_PATH), { recursive: true });
   const temp = STORE_PATH + '.' + process.pid + '.tmp';
   try {
@@ -144,6 +217,13 @@ async function saveStore(store) {
     await fs.promises.rename(temp, STORE_PATH);
   } finally {
     await fs.promises.rm(temp, { force: true }).catch(() => {});
+  }
+}
+
+function closeStore() {
+  if (database) {
+    database.close();
+    database = null;
   }
 }
 function parseCookies(header = '') {
@@ -214,7 +294,7 @@ function createServer() {
           return res.end();
         }
         if (url.pathname === '/api/health' && req.method === 'GET') {
-          return json(res, 200, { ok: true, service: 'petale-api', storage: 'json-file', auth: 'required', adminConfigured: adminConfigured() });
+          return json(res, 200, { ok: true, service: 'petale-api', storage: DATABASE_PATH ? 'sqlite' : 'json-file', auth: 'required', adminConfigured: adminConfigured() });
         }
         const secureCookie = process.env.NODE_ENV === 'production';
         if (url.pathname === '/api/auth/login' && req.method === 'POST') {
@@ -488,4 +568,4 @@ if (require.main === module) {
     console.log('JSON data store: ' + STORE_PATH);
   });
 }
-module.exports = { createServer, validateNewOrder, loadStore, saveStore };
+module.exports = { createServer, validateNewOrder, loadStore, saveStore, closeStore };
