@@ -3,6 +3,7 @@ FROM node:20-bookworm-slim
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV PETAL_STORE_PATH=/app/data/store.json
+ENV PETAL_DATABASE_PATH=/app/data/store.sqlite
 
 WORKDIR /app
 
