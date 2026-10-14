@@ -183,7 +183,7 @@ test('prevents a delivery from moving backwards in its lifecycle', async () => {
 
 test('throttles repeated invalid login attempts', async () => {
   let response;
-  for (let index = 0; index < 10; index += 1) {
+  for (let index = 0; index < 11; index += 1) {
     response = await request('/api/auth/login', {
       auth: false,
       method: 'POST',
