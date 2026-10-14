@@ -247,6 +247,30 @@ test('creates role accounts and limits courier access to available and assigned 
   assert.equal(visible.length, 1);
   assert.equal(visible[0].id, createdOrder.body.order.id);
 
+  const duplicateCourierName = await request('/api/users', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Camille Livreur', email: 'another@petale.test', role: 'livreur', password: 'Another-Strong-Password-2026!' })
+  });
+  assert.equal(duplicateCourierName.status, 409);
+
+  const secondCourier = await request('/api/users', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Alex Autre', email: 'alex.autre@petale.test', role: 'livreur', password: 'Alex-Strong-Password-2026!' })
+  });
+  assert.equal(secondCourier.status, 201);
+  const secondLogin = await fetch(baseUrl + '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'alex.autre@petale.test', password: 'Alex-Strong-Password-2026!' })
+  });
+  const secondCookie = secondLogin.headers.get('set-cookie').split(';')[0];
+  const forbiddenDelivery = await fetch(baseUrl + '/api/orders/' + createdOrder.body.order.id + '/status', {
+    method: 'PATCH',
+    headers: { Cookie: secondCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'Livrée' })
+  });
+  assert.equal(forbiddenDelivery.status, 403);
+
   const forbiddenUsers = await fetch(baseUrl + '/api/users', { headers: { Cookie: cookie } });
   assert.equal(forbiddenUsers.status, 403);
   const forbiddenAudit = await fetch(baseUrl + '/api/audit', { headers: { Cookie: cookie } });
