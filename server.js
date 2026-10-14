@@ -102,6 +102,7 @@ async function loadStore() {
 }
 const BACKUP_RETENTION = 7;
 const BACKUP_DIR = STORE_PATH + '.backups';
+let backupSequence = 0;
 
 async function createStoreBackup() {
   let previous;
@@ -112,8 +113,9 @@ async function createStoreBackup() {
     throw err;
   }
   await fs.promises.mkdir(BACKUP_DIR, { recursive: true, mode: 0o700 });
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupPath = path.join(BACKUP_DIR, 'store-' + stamp + '-' + crypto.randomBytes(3).toString('hex') + '.json');
+  const stamp = String(Date.now()).padStart(13, '0');
+  const sequence = String(++backupSequence).padStart(6, '0');
+  const backupPath = path.join(BACKUP_DIR, 'store-' + stamp + '-' + process.pid + '-' + sequence + '-' + crypto.randomBytes(3).toString('hex') + '.json');
   const tempPath = backupPath + '.tmp';
   try {
     await fs.promises.writeFile(tempPath, previous, { mode: 0o600, flag: 'wx' });
