@@ -29,6 +29,14 @@ test('frontend provides a login gate and logout control for authenticated API ac
   assert.match(html, /\/api\/auth\/me/);
 });
 
+test('frontend handles courier roles without storing live API customer data locally', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /\/api\/orders\/available/);
+  assert.match(html, /currentUser\?\.role==='livreur'/);
+  assert.match(html, /function persistDemoState\(\)\{if\(apiOnline\)return/);
+  assert.match(html, /Vérification de votre session/);
+});
+
 test('frontend exposes API-first startup and local demo fallback', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.match(html, /async function connectApi\(\)/);
