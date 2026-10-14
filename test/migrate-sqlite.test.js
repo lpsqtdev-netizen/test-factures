@@ -64,7 +64,7 @@ test('migration is idempotent and refuses to overwrite a different database stat
     await fs.promises.writeFile(source, JSON.stringify({ orders: [{ id: 'PET-NEW' }], couriers: [] }));
     const third = spawnSync(process.execPath, [script, source, target], { encoding: 'utf8' });
     assert.notEqual(third.status, 0);
-    assert.match(third.stderr, /aucune donnée n’a été écrasée/);
+    assert.match(third.stderr, /Aucune donnée n’a été écrasée/);
   } finally {
     await fs.promises.rm(dir, { recursive: true, force: true });
   }
