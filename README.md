@@ -40,3 +40,33 @@ Le prototype inclut maintenant une vue « Espace livreur » :
 Les commandes de démonstration sont également sauvegardées dans le stockage local du navigateur (`localStorage`) afin de survivre à un rechargement sur le même navigateur. Cette sauvegarde n'est ni un compte utilisateur ni une base de données partagée : les données ne se synchronisent pas entre appareils ou entre le fleuriste et le livreur.
 
 Pour les tests, créez une commande depuis « Vue d'ensemble », puis ouvrez « Espace livreur » et acceptez la mission. Les données restent locales à cette session navigateur.
+
+
+## Serveur API (MVP)
+Prérequis : Node.js 20 ou plus récent. Aucune dépendance npm externe n'est requise.
+
+```bash
+npm start
+```
+
+Puis ouvrir http://localhost:3000. Le serveur sert l'interface et l'API sur la même origine. En mode serveur, les commandes sont enregistrées dans `data/store.json` et partagées par les navigateurs qui utilisent cette même instance.
+
+### Routes disponibles
+- `GET /api/health` — état du service et mode de stockage
+- `GET /api/orders` — liste des commandes
+- `POST /api/orders` — crée une commande après validation
+- `PATCH /api/orders/:id/assign` — assigne un livreur et passe la commande en livraison
+- `PATCH /api/orders/:id/status` — fait évoluer le statut d'une commande
+- `GET /api/couriers` — liste de démonstration des livreurs
+
+Le fichier de données peut être déplacé en définissant `PETAL_STORE_PATH`. Le port est configurable via `PORT`.
+
+### Tests automatisés
+```bash
+npm test
+```
+
+Les tests couvrent le health check, la lecture des commandes et livreurs, la création persistante, la validation des entrées, l'assignation, les transitions de statut et le service du front-end.
+
+### Limites et sécurité avant une mise en ligne
+Ce backend est une fondation MVP, pas encore un service de production. Le stockage JSON convient à une instance de démonstration et à des essais légers, mais pas à une forte concurrence ni à plusieurs instances. Il n'y a pas encore d'authentification, d'autorisation par rôle, de base SQL, de protection CSRF/rate limiting, de journal d'audit, ni de sauvegarde automatisée. **Ne pas exposer publiquement avec des données personnelles réelles avant d'ajouter ces protections.** Le front-end essaie l'API au démarrage et revient en mode démo local si elle est indisponible.
