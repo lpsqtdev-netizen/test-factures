@@ -279,47 +279,6 @@ test('creates role accounts and limits courier access to available and assigned 
   assert.ok(adminUsers.body.users.some(user => user.email === 'camille.livreur@petale.test'));
 });
 
-test('throttles repeated invalid login attempts', async () => {
-  let response;
-  for (let index = 0; index < 11; index += 1) {
-    response = await request('/api/auth/login', {
-      auth: false,
-      method: 'POST',
-      body: JSON.stringify({ email: process.env.PETAL_ADMIN_EMAIL, password: 'wrong-password-' + index })
-    });
-  }
-  assert.equal(response.status, 429);
-  assert.match(response.body.error, /Trop de tentatives/);
-});
-
-test('serves the frontend from the same origin', async () => {
-  const response = await fetch(baseUrl + '/');
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get('content-type'), /text\/html/);
-  assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
-  assert.equal(response.headers.get('x-frame-options'), 'DENY');
-  assert.equal(response.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
-  assert.match(await response.text(), /Pétale/);
-});
-
-
-test('creates private rotating backups before replacing the JSON store', async () => {
-  const original = await fs.promises.readFile(process.env.PETAL_STORE_PATH, 'utf8');
-  const parsed = JSON.parse(original);
-  await require('../server').saveStore(parsed);
-  const changed = { ...parsed, backupTestMarker: 'new-version' };
-  await require('../server').saveStore(changed);
-  const backupDir = process.env.PETAL_STORE_PATH + '.backups';
-  const backups = (await fs.promises.readdir(backupDir)).filter(name => /^store-.*\.json$/.test(name));
-  assert.ok(backups.length >= 1);
-  assert.ok(backups.length <= 7);
-  const newestBackup = JSON.parse(await fs.promises.readFile(path.join(backupDir, backups.sort().at(-1)), 'utf8'));
-  assert.equal(newestBackup.backupTestMarker, undefined);
-  assert.equal(JSON.parse(await fs.promises.readFile(process.env.PETAL_STORE_PATH, 'utf8')).backupTestMarker, 'new-version');
-  const stats = await fs.promises.stat(path.join(backupDir, backups[0]));
-  if (process.platform !== 'win32') assert.equal(stats.mode & 0o077, 0);
-});
-
 
 test('isolates florist orders and blocks cross-account order mutations', async () => {
   for (const account of [
@@ -366,4 +325,45 @@ test('isolates florist orders and blocks cross-account order mutations', async (
 
   const alphaOrdersResponse = await fetch(baseUrl + '/api/orders', { headers: { Cookie: alphaCookie } });
   assert.ok((await alphaOrdersResponse.json()).orders.some(item => item.id === order.id));
+});
+
+test('throttles repeated invalid login attempts', async () => {
+  let response;
+  for (let index = 0; index < 11; index += 1) {
+    response = await request('/api/auth/login', {
+      auth: false,
+      method: 'POST',
+      body: JSON.stringify({ email: process.env.PETAL_ADMIN_EMAIL, password: 'wrong-password-' + index })
+    });
+  }
+  assert.equal(response.status, 429);
+  assert.match(response.body.error, /Trop de tentatives/);
+});
+
+test('serves the frontend from the same origin', async () => {
+  const response = await fetch(baseUrl + '/');
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /text\/html/);
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(response.headers.get('x-frame-options'), 'DENY');
+  assert.equal(response.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
+  assert.match(await response.text(), /Pétale/);
+});
+
+
+test('creates private rotating backups before replacing the JSON store', async () => {
+  const original = await fs.promises.readFile(process.env.PETAL_STORE_PATH, 'utf8');
+  const parsed = JSON.parse(original);
+  await require('../server').saveStore(parsed);
+  const changed = { ...parsed, backupTestMarker: 'new-version' };
+  await require('../server').saveStore(changed);
+  const backupDir = process.env.PETAL_STORE_PATH + '.backups';
+  const backups = (await fs.promises.readdir(backupDir)).filter(name => /^store-.*\.json$/.test(name));
+  assert.ok(backups.length >= 1);
+  assert.ok(backups.length <= 7);
+  const newestBackup = JSON.parse(await fs.promises.readFile(path.join(backupDir, backups.sort().at(-1)), 'utf8'));
+  assert.equal(newestBackup.backupTestMarker, undefined);
+  assert.equal(JSON.parse(await fs.promises.readFile(process.env.PETAL_STORE_PATH, 'utf8')).backupTestMarker, 'new-version');
+  const stats = await fs.promises.stat(path.join(backupDir, backups[0]));
+  if (process.platform !== 'win32') assert.equal(stats.mode & 0o077, 0);
 });
