@@ -268,6 +268,33 @@ function createServer() {
         }
         if (!activeSession) return json(res, 401, { error: 'Connexion requise.' });
         const store = await loadStore();
+        if (url.pathname === '/api/auth/password' && req.method === 'POST') {
+          if (activeSession.user.role === 'admin') {
+            return json(res, 403, { error: 'Le mot de passe administrateur se gère via la configuration de déploiement.' });
+          }
+          const body = await readBody(req);
+          const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
+          const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
+          if (newPassword.length < 12 || newPassword.length > 1024) {
+            return json(res, 422, { error: 'Le nouveau mot de passe doit contenir entre 12 et 1024 caractères.' });
+          }
+          const account = store.users.find(user => user.id === activeSession.user.id);
+          if (!account || !passwordMatches(currentPassword, account.passwordHash)) {
+            return json(res, 401, { error: 'Mot de passe actuel incorrect.' });
+          }
+          if (passwordMatches(newPassword, account.passwordHash)) {
+            return json(res, 422, { error: 'Choisissez un mot de passe différent de l’actuel.' });
+          }
+          account.passwordHash = passwordRecord(newPassword);
+          account.passwordChangedAt = new Date().toISOString();
+          store.audit.unshift({ id: crypto.randomUUID(), action: 'user.password_changed', entityId: account.id, actor: account.email, at: new Date().toISOString() });
+          store.audit = store.audit.slice(0, 1000);
+          await saveStore(store);
+          for (const [sessionToken, sessionData] of sessions) {
+            if (sessionData.user.id === account.id && sessionToken !== token) sessions.delete(sessionToken);
+          }
+          return json(res, 200, { ok: true, passwordChangedAt: account.passwordChangedAt });
+        }
         if (url.pathname === '/api/users' && req.method === 'GET') {
           if (activeSession.user.role !== 'admin') return json(res, 403, { error: 'Droits administrateur requis.' });
           return json(res, 200, { users: store.users.map(({ passwordHash, ...user }) => user) });
