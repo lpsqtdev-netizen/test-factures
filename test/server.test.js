@@ -59,6 +59,25 @@ test('creates a validated order and persists it between requests', async () => {
   assert.ok(listed.body.orders.some(order => order.id === created.body.order.id && order.price === 37.5));
 });
 
+test('serializes concurrent order creation without duplicate IDs or lost orders', async () => {
+  const requests = Array.from({ length: 12 }, (_, index) => request('/api/orders', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: 'Client concurrent ' + index,
+      address: (index + 1) + ' rue des Fleurs, Bordeaux',
+      slot: '15h – 17h',
+      price: 20 + index,
+      bouquet: 'Bouquet de saison'
+    })
+  }));
+  const responses = await Promise.all(requests);
+  assert.ok(responses.every(response => response.status === 201));
+  const ids = responses.map(response => response.body.order.id);
+  assert.equal(new Set(ids).size, 12);
+  const listed = await request('/api/orders');
+  assert.ok(ids.every(id => listed.body.orders.some(order => order.id === id)));
+});
+
 test('rejects invalid order input', async () => {
   const response = await request('/api/orders', {
     method: 'POST',
