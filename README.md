@@ -6,7 +6,7 @@ Pétale est un MVP de plateforme de coordination entre fleuristes indépendants 
 
 - Tableau de bord fleuriste et suivi des commandes.
 - Création de commandes avec destinataire, adresse, créneau, bouquet, montant et consignes.
-- Isolation des commandes par compte fleuriste : un fleuriste ne consulte et ne modifie que ses commandes ; l’administrateur conserve une vue globale.
+- Isolation des commandes et des paramètres de boutique par compte fleuriste ; l’administrateur conserve une vue globale.
 - Dispatch et attribution des missions.
 - Espace livreur de démonstration pour accepter et terminer une livraison.
 - Annuaire des livreurs partenaires et vue tournée illustrative.
@@ -41,6 +41,7 @@ Sans identifiants administrateur configurés, l'API métier reste fermée et le 
 - `POST /api/auth/login` — ouvre une session administrateur.
 - `GET /api/auth/me` — utilisateur de la session courante.
 - `POST /api/auth/password` — changement du mot de passe d'un compte partenaire, avec vérification du mot de passe actuel et révocation des autres sessions (le mot de passe administrateur reste géré par l'environnement).
+- `GET /api/settings` / `POST /api/settings` — profil professionnel isolé par compte (boutique, responsable, e-mail, téléphone, adresse de retrait, SIRET et TVA).
 - `GET /api/users` / `POST /api/users` — consultation et création de comptes partenaires (administrateur uniquement).
 - `GET /api/orders/available` — missions ouvertes sans données de contact privées, réservé aux livreurs.
 - `POST /api/auth/logout` — ferme la session.
@@ -59,7 +60,7 @@ Les routes métier exigent une session valide. Le cookie est HttpOnly, SameSite=
 npm test
 ```
 
-GitHub Actions exécute les tests Node.js et construit l'image Docker. Les tests couvrent notamment les sessions, le changement de mot de passe et la révocation des sessions, les identifiants incorrects, la déconnexion, l'isolation des commandes entre fleuristes, le rejet des requêtes cross-origin, la limitation des tentatives, la validation des entrées, les créations concurrentes, le journal d'audit, les transitions de statut, l'échappement HTML et la syntaxe JavaScript de l'interface.
+GitHub Actions exécute les tests Node.js et construit l'image Docker. Les tests couvrent notamment les sessions, le changement de mot de passe et la révocation des sessions, les identifiants incorrects, la déconnexion, l'isolation des commandes et des profils professionnels entre fleuristes, le rejet des requêtes cross-origin, la limitation des tentatives, la validation des entrées, les créations concurrentes, le journal d'audit, les transitions de statut, l'échappement HTML et la syntaxe JavaScript de l'interface.
 
 ## Exécution avec Docker
 
