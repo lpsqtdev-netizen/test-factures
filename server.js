@@ -11,6 +11,7 @@ const STORE_PATH = process.env.PETAL_STORE_PATH || path.join(ROOT, 'data', 'stor
 const MAX_BODY_BYTES = 32 * 1024;
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
+const loginAttempts = new Map();
 
 const seed = {
   orders: [
@@ -142,6 +143,10 @@ function createServer() {
       res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
       res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
       const url = new URL(req.url, 'http://localhost');
+      if (url.pathname.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.origin) {
+        const origin = new URL(req.headers.origin);
+        if (origin.host !== req.headers.host) return json(res, 403, { error: 'Origine de requête refusée.' });
+      }
       if (url.pathname.startsWith('/api/')) {
         if (req.method === 'OPTIONS') {
           res.writeHead(204, { 'Allow': 'GET, POST, PATCH, OPTIONS' });
@@ -155,6 +160,15 @@ function createServer() {
           if (!process.env.PETAL_ADMIN_EMAIL || !process.env.PETAL_ADMIN_PASSWORD) {
             return json(res, 503, { error: 'Authentification non configurée. Définissez PETAL_ADMIN_EMAIL et PETAL_ADMIN_PASSWORD.' });
           }
+          const now = Date.now();
+          const ip = req.socket.remoteAddress || 'unknown';
+          let attempt = loginAttempts.get(ip);
+          if (!attempt || attempt.resetAt <= now) attempt = { count: 0, resetAt: now + 15 * 60 * 1000 };
+          if (attempt.count >= 10) {
+            loginAttempts.set(ip, attempt);
+            res.setHeader('Retry-After', String(Math.max(1, Math.ceil((attempt.resetAt - now) / 1000))));
+            return json(res, 429, { error: 'Trop de tentatives. Réessayez plus tard.' });
+          }
           const body = await readBody(req);
           const email = safeString(body.email, 254).toLowerCase();
           const password = typeof body.password === 'string' ? body.password : '';
@@ -164,7 +178,12 @@ function createServer() {
           // Constant-time password comparison is used after a normalized email comparison.
           const emailMatches = email === configuredEmail;
           const passwordOk = password.length <= 1024 && record && passwordMatches(password, record);
-          if (!emailMatches || !passwordOk) return json(res, 401, { error: 'Identifiants incorrects.' });
+          if (!emailMatches || !passwordOk) {
+            attempt.count += 1;
+            loginAttempts.set(ip, attempt);
+            return json(res, 401, { error: 'Identifiants incorrects.' });
+          }
+          loginAttempts.delete(ip);
           const token = crypto.randomBytes(32).toString('base64url');
           sessions.set(token, { user: { email: configuredEmail, role: 'admin' }, expiresAt: Date.now() + SESSION_TTL_MS });
           res.setHeader('Set-Cookie', sessionCookie(token, secureCookie));
@@ -187,10 +206,6 @@ function createServer() {
           return json(res, 503, { error: 'Authentification non configurée. Définissez PETAL_ADMIN_EMAIL et PETAL_ADMIN_PASSWORD.' });
         }
         if (!activeSession) return json(res, 401, { error: 'Connexion requise.' });
-        if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers.origin) {
-          const origin = new URL(req.headers.origin);
-          if (origin.host !== req.headers.host) return json(res, 403, { error: 'Origine de requête refusée.' });
-        }
         const store = await loadStore();
         if (url.pathname === '/api/orders' && req.method === 'GET') {
           return json(res, 200, { orders: store.orders });
