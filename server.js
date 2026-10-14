@@ -67,13 +67,20 @@ async function readBody(req) {
     }
   }
   if (!data) return {};
+  let parsed;
   try {
-    return JSON.parse(data);
+    parsed = JSON.parse(data);
   } catch {
     const err = new Error('JSON invalide.');
     err.status = 400;
     throw err;
   }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    const err = new Error('Le corps JSON doit être un objet.');
+    err.status = 400;
+    throw err;
+  }
+  return parsed;
 }
 async function loadStore() {
   try {
