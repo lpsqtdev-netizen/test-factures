@@ -319,3 +319,51 @@ test('creates private rotating backups before replacing the JSON store', async (
   const stats = await fs.promises.stat(path.join(backupDir, backups[0]));
   if (process.platform !== 'win32') assert.equal(stats.mode & 0o077, 0);
 });
+
+
+test('isolates florist orders and blocks cross-account order mutations', async () => {
+  for (const account of [
+    { name: 'Fleuriste Alpha', email: 'alpha@petale.test' },
+    { name: 'Fleuriste Beta', email: 'beta@petale.test' }
+  ]) {
+    const created = await request('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({ ...account, role: 'fleuriste', password: 'Florist-Strong-Password-2026!' })
+    });
+    assert.equal(created.status, 201);
+  }
+
+  async function login(email) {
+    const response = await fetch(baseUrl + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'Florist-Strong-Password-2026!' })
+    });
+    assert.equal(response.status, 200);
+    return response.headers.get('set-cookie').split(';')[0];
+  }
+
+  const alphaCookie = await login('alpha@petale.test');
+  const betaCookie = await login('beta@petale.test');
+  const createdOrder = await fetch(baseUrl + '/api/orders', {
+    method: 'POST',
+    headers: { Cookie: alphaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Client Alpha', address: '1 rue des Fleurs, Bordeaux', slot: '15h – 17h', price: 45 })
+  });
+  assert.equal(createdOrder.status, 201);
+  const order = (await createdOrder.json()).order;
+  assert.ok(order.createdBy);
+  const betaOrdersResponse = await fetch(baseUrl + '/api/orders', { headers: { Cookie: betaCookie } });
+  const betaOrders = (await betaOrdersResponse.json()).orders;
+  assert.equal(betaOrders.some(item => item.id === order.id), false);
+
+  const forbiddenMutation = await fetch(baseUrl + '/api/orders/' + order.id + '/status', {
+    method: 'PATCH',
+    headers: { Cookie: betaCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'En livraison', courier: 'Livreur test' })
+  });
+  assert.equal(forbiddenMutation.status, 403);
+
+  const alphaOrdersResponse = await fetch(baseUrl + '/api/orders', { headers: { Cookie: alphaCookie } });
+  assert.ok((await alphaOrdersResponse.json()).orders.some(item => item.id === order.id));
+});
