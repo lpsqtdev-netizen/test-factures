@@ -122,9 +122,89 @@ function getDatabase() {
         name TEXT NOT NULL,
         applied_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS orders (
+        id TEXT PRIMARY KEY,
+        position INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        created_by TEXT NOT NULL DEFAULT '',
+        courier_account_id TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT '',
+        payload TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_orders_status_position ON orders(status, position);
+      CREATE INDEX IF NOT EXISTS idx_orders_created_by ON orders(created_by);
+      CREATE INDEX IF NOT EXISTS idx_orders_courier_account_id ON orders(courier_account_id);
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        position INTEGER NOT NULL,
+        email TEXT NOT NULL,
+        role TEXT NOT NULL,
+        payload TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+      CREATE TABLE IF NOT EXISTS couriers (
+        id TEXT PRIMARY KEY,
+        position INTEGER NOT NULL,
+        payload TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS business_settings (
+        user_id TEXT PRIMARY KEY,
+        payload TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS audit_events (
+        id TEXT PRIMARY KEY,
+        position INTEGER NOT NULL,
+        at TEXT NOT NULL DEFAULT '',
+        action TEXT NOT NULL DEFAULT '',
+        entity_id TEXT NOT NULL DEFAULT '',
+        payload TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_audit_events_at ON audit_events(at);
+      CREATE INDEX IF NOT EXISTS idx_audit_events_action ON audit_events(action);
     `);
   }
   return database;
+}
+
+function writeRelationalStore(db, store) {
+  db.exec('DELETE FROM orders; DELETE FROM users; DELETE FROM couriers; DELETE FROM business_settings; DELETE FROM audit_events;');
+  const insertOrder = db.prepare('INSERT INTO orders (id, position, status, created_by, courier_account_id, created_at, payload) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  store.orders.forEach((item, position) => insertOrder.run(
+    String(item.id), position, String(item.status || ''), String(item.createdBy || ''),
+    String(item.courierAccountId || ''), String(item.createdAt || ''), JSON.stringify(item)
+  ));
+  const insertUser = db.prepare('INSERT INTO users (id, position, email, role, payload) VALUES (?, ?, ?, ?, ?)');
+  store.users.forEach((item, position) => insertUser.run(
+    String(item.id), position, String(item.email || '').toLowerCase(), String(item.role || ''), JSON.stringify(item)
+  ));
+  const insertCourier = db.prepare('INSERT INTO couriers (id, position, payload) VALUES (?, ?, ?)');
+  store.couriers.forEach((item, position) => insertCourier.run(String(item.id), position, JSON.stringify(item)));
+  const insertSetting = db.prepare('INSERT INTO business_settings (user_id, payload) VALUES (?, ?)');
+  Object.entries(store.settingsByUser).forEach(([userId, settings]) => insertSetting.run(userId, JSON.stringify(settings)));
+  const insertAudit = db.prepare('INSERT INTO audit_events (id, position, at, action, entity_id, payload) VALUES (?, ?, ?, ?, ?, ?)');
+  store.audit.forEach((item, position) => insertAudit.run(
+    String(item.id), position, String(item.at || ''), String(item.action || ''),
+    String(item.entityId || ''), JSON.stringify(item)
+  ));
+  db.prepare('INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (2, ?, ?)')
+    .run('normalized-business-tables', new Date().toISOString());
+}
+
+function readRelationalStore(db, store) {
+  const migrated = db.prepare('SELECT version FROM schema_migrations WHERE version = 2').get();
+  if (!migrated) {
+    const migrate = db.transaction(() => writeRelationalStore(db, store));
+    migrate();
+    return store;
+  }
+  const readPayloads = table => db.prepare('SELECT payload FROM ' + table + ' ORDER BY position').all().map(row => JSON.parse(row.payload));
+  store.orders = readPayloads('orders');
+  store.users = readPayloads('users');
+  store.couriers = readPayloads('couriers');
+  store.audit = readPayloads('audit_events');
+  store.settingsByUser = Object.fromEntries(db.prepare('SELECT user_id, payload FROM business_settings').all()
+    .map(row => [row.user_id, JSON.parse(row.payload)]));
+  return store;
 }
 
 async function loadJsonStore() {
@@ -144,7 +224,7 @@ async function loadStore() {
   if (row) {
     const parsed = normalizeStore(JSON.parse(row.payload));
     if (!parsed) throw new Error('État SQLite invalide : commandes et livreurs doivent être des listes.');
-    return parsed;
+    return readRelationalStore(db, parsed);
   }
   // First boot in SQLite mode imports an existing JSON store without deleting it.
   const initial = await loadJsonStore();
@@ -155,6 +235,7 @@ async function loadStore() {
       .run(payload, crypto.createHash('sha256').update(payload).digest('hex'), now);
     db.prepare('INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (1, ?, ?)')
       .run('json-store-import', now);
+    writeRelationalStore(db, initial);
   });
   insert();
   return initial;
@@ -219,6 +300,7 @@ async function saveStore(store) {
         .run(payload, digest, now);
       db.prepare('INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (1, ?, ?)')
         .run('json-store-import', now);
+      writeRelationalStore(db, store);
     });
     write();
     return;
