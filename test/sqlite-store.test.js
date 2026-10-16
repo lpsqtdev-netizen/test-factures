@@ -72,6 +72,18 @@ test('SQLite mode imports legacy JSON, persists changes transactionally and repo
       normalizedDb.close();
     }
 
+    const staleSnapshot = await serverModule.loadStore();
+    const winningSnapshot = await serverModule.loadStore();
+    winningSnapshot.orders[0].concurrencyMarker = 'winning-write';
+    await serverModule.saveStore(winningSnapshot);
+    staleSnapshot.orders[0].concurrencyMarker = 'stale-write';
+    await assert.rejects(
+      serverModule.saveStore(staleSnapshot),
+      error => error.status === 409 && /modifiées par une autre requête/.test(error.message)
+    );
+    const afterConflict = await serverModule.loadStore();
+    assert.equal(afterConflict.orders[0].concurrencyMarker, 'winning-write');
+
     server = serverModule.createServer();
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const response = await fetch('http://127.0.0.1:' + server.address().port + '/api/health');
