@@ -56,6 +56,21 @@ test('SQLite mode imports legacy JSON, persists changes transactionally and repo
     const reopened = await serverModule.loadStore();
     assert.ok(reopened.orders.some(order => order.id === 'PET-7002'));
     assert.equal(reopened.audit[0].id, 'event-migration');
+    assert.equal(reopened.users[0].email, 'a@petale.test');
+    assert.equal(reopened.settingsByUser['florist-a'].shopName, 'Fleurs de test');
+
+    const normalizedDb = new Database(databasePath, { readonly: true });
+    try {
+      assert.equal(normalizedDb.prepare('SELECT COUNT(*) AS count FROM orders').get().count, 2);
+      assert.equal(normalizedDb.prepare('SELECT COUNT(*) AS count FROM users').get().count, 1);
+      assert.equal(normalizedDb.prepare('SELECT COUNT(*) AS count FROM couriers').get().count, 1);
+      assert.equal(normalizedDb.prepare('SELECT COUNT(*) AS count FROM business_settings').get().count, 1);
+      assert.equal(normalizedDb.prepare('SELECT COUNT(*) AS count FROM audit_events').get().count, 1);
+      assert.ok(normalizedDb.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_orders_status_position'").get());
+      assert.ok(normalizedDb.prepare('SELECT version FROM schema_migrations WHERE version = 2').get());
+    } finally {
+      normalizedDb.close();
+    }
 
     server = serverModule.createServer();
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
