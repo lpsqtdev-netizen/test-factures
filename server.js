@@ -197,7 +197,7 @@ async function createDatabaseBackup(db) {
   const backupPath = path.join(backupDir, 'store-' + stamp + '-' + process.pid + '-' + crypto.randomBytes(4).toString('hex') + '.sqlite');
   await db.backup(backupPath);
   await fs.promises.chmod(backupPath, 0o600);
-  const files = (await fs.promises.readdir(backupDir)).filter(name => /^store-.*\\.sqlite$/.test(name)).sort().reverse();
+  const files = (await fs.promises.readdir(backupDir)).filter(name => /^store-.*\.sqlite$/.test(name)).sort().reverse();
   await Promise.all(files.slice(BACKUP_RETENTION).map(name => fs.promises.unlink(path.join(backupDir, name))));
   return backupPath;
 }
