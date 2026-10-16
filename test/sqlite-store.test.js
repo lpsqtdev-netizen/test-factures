@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const Database = require('better-sqlite3');
 
 test('SQLite mode imports legacy JSON, persists changes transactionally and reports its backend', async () => {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'petale-sqlite-store-'));
@@ -36,6 +37,20 @@ test('SQLite mode imports legacy JSON, persists changes transactionally and repo
     const backups = (await fs.promises.readdir(backupDir)).filter(name => name.endsWith('.sqlite'));
     assert.equal(backups.length, 1);
     if (process.platform !== 'win32') assert.equal((await fs.promises.stat(path.join(backupDir, backups[0]))).mode & 0o077, 0);
+
+    for (let index = 0; index < 10; index += 1) {
+      imported.orders[0].backupTestMarker = 'revision-' + index;
+      await serverModule.saveStore(imported);
+    }
+    const rotated = (await fs.promises.readdir(backupDir)).filter(name => name.endsWith('.sqlite'));
+    assert.equal(rotated.length, 7, 'SQLite backup rotation should retain only seven snapshots');
+    const backupDb = new Database(path.join(backupDir, rotated[0]), { readonly: true });
+    try {
+      const backupState = JSON.parse(backupDb.prepare('SELECT payload FROM app_state WHERE id = 1').get().payload);
+      assert.ok(backupState.orders.length > 0);
+    } finally {
+      backupDb.close();
+    }
     serverModule.closeStore();
 
     const reopened = await serverModule.loadStore();
