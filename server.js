@@ -6,6 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const DATABASE_PATH = process.env.PETAL_DATABASE_PATH || '';
 let database = null;
+const storeRevisions = new WeakMap();
 
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT || 3000);
@@ -115,7 +116,8 @@ function getDatabase() {
         id INTEGER PRIMARY KEY CHECK (id = 1),
         payload TEXT NOT NULL,
         source_sha256 TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        revision INTEGER NOT NULL DEFAULT 1
       );
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version INTEGER PRIMARY KEY,
@@ -162,6 +164,12 @@ function getDatabase() {
       CREATE INDEX IF NOT EXISTS idx_audit_events_at ON audit_events(at);
       CREATE INDEX IF NOT EXISTS idx_audit_events_action ON audit_events(action);
     `);
+    const stateColumns = database.pragma('table_info(app_state)');
+    if (!stateColumns.some(column => column.name === 'revision')) {
+      database.exec('ALTER TABLE app_state ADD COLUMN revision INTEGER NOT NULL DEFAULT 1');
+    }
+    database.prepare('INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (3, ?, ?)')
+      .run('optimistic-store-revision', new Date().toISOString());
   }
   return database;
 }
@@ -220,10 +228,11 @@ async function loadJsonStore() {
 async function loadStore() {
   const db = getDatabase();
   if (!db) return loadJsonStore();
-  const row = db.prepare('SELECT payload FROM app_state WHERE id = 1').get();
+  const row = db.prepare('SELECT payload, revision FROM app_state WHERE id = 1').get();
   if (row) {
     const parsed = normalizeStore(JSON.parse(row.payload));
     if (!parsed) throw new Error('État SQLite invalide : commandes et livreurs doivent être des listes.');
+    storeRevisions.set(parsed, row.revision);
     return readRelationalStore(db, parsed);
   }
   // First boot in SQLite mode imports an existing JSON store without deleting it.
@@ -238,6 +247,7 @@ async function loadStore() {
     writeRelationalStore(db, initial);
   });
   insert();
+  storeRevisions.set(initial, 1);
   return initial;
 }
 const BACKUP_RETENTION = 7;
@@ -286,23 +296,34 @@ async function createDatabaseBackup(db) {
 async function saveStore(store) {
   const db = getDatabase();
   if (db) {
-    if (db.prepare('SELECT 1 FROM app_state WHERE id = 1').get()) {
-      await createDatabaseBackup(db);
+    const expectedRevision = storeRevisions.get(store);
+    if (expectedRevision === undefined) {
+      const err = new Error('État SQLite non chargé depuis la base. Rechargez les données avant de les modifier.');
+      err.status = 409;
+      throw err;
     }
+    const current = db.prepare('SELECT revision FROM app_state WHERE id = 1').get();
+    if (!current || current.revision !== expectedRevision) {
+      const err = new Error('Les données ont été modifiées par une autre requête. Rechargez puis réessayez.');
+      err.status = 409;
+      throw err;
+    }
+    await createDatabaseBackup(db);
     const payload = JSON.stringify(store);
     const now = new Date().toISOString();
     const digest = crypto.createHash('sha256').update(payload).digest('hex');
     const write = db.transaction(() => {
-      db.prepare(`INSERT INTO app_state (id, payload, source_sha256, updated_at)
-        VALUES (1, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET payload = excluded.payload,
-          source_sha256 = excluded.source_sha256, updated_at = excluded.updated_at`)
-        .run(payload, digest, now);
-      db.prepare('INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (1, ?, ?)')
-        .run('json-store-import', now);
+      const result = db.prepare(`UPDATE app_state SET payload = ?, source_sha256 = ?, updated_at = ?, revision = revision + 1
+        WHERE id = 1 AND revision = ?`).run(payload, digest, now, expectedRevision);
+      if (result.changes !== 1) {
+        const err = new Error('Les données ont été modifiées par une autre requête. Rechargez puis réessayez.');
+        err.status = 409;
+        throw err;
+      }
       writeRelationalStore(db, store);
     });
     write();
+    storeRevisions.set(store, expectedRevision + 1);
     return;
   }
   await fs.promises.mkdir(path.dirname(STORE_PATH), { recursive: true });
