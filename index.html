@@ -115,7 +115,13 @@ function renderInvoices(){
   $('#invoiceIssuedMonth').textContent=money(issuedMonth);
   $('#invoiceIssuedTotal').textContent=money(issuedTotal);
   $('#invoiceNextStep').textContent=pending.length?'Brouillon':'Prêt';
-  $('#invoiceTable').innerHTML=invoices.length?invoices.map(i=>{const issued=i.status!=='Brouillon';const statusClassName=issued?'done':'wait';const safeId=escapeHtml(i.id||'');return '<tr><td><strong>'+escapeHtml(i.ref)+'</strong></td><td>'+escapeHtml(i.name)+'</td><td>'+escapeHtml(i.date)+'</td><td><span class="tag '+statusClassName+'">'+escapeHtml(i.status)+'</span></td><td><strong>'+money(i.price)+'</strong></td><td><div style="display:flex;gap:8px;flex-wrap:wrap">'+(issued?'<button class="text-btn" data-invoice-pdf="'+safeId+'">Télécharger PDF ↗</button>':'<button class="text-btn" data-issue-invoice="'+safeId+'">Émettre</button><button class="text-btn" data-invoice-pdf="'+safeId+'">Aperçu PDF</button>')+'</div></td></tr>';}).join(''):'<tr><td colspan="6"><div class="empty">Aucune facture enregistrée. Créez un brouillon pour commencer.</div></td></tr>';
+  $('#invoiceTable').innerHTML=invoices.length?invoices.map(i=>{
+    const issued=i.status!=='Brouillon';
+    const statusClassName=issued?'done':'wait';
+    const safeId=escapeHtml(i.id||'');
+    const actions=safeId?(issued?'<button class="text-btn" data-invoice-pdf="'+safeId+'">Télécharger PDF ↗</button>':'<button class="text-btn" data-issue-invoice="'+safeId+'">Émettre</button><button class="text-btn" data-invoice-pdf="'+safeId+'">Aperçu PDF</button>'):'<button class="text-btn" data-invoice="'+escapeHtml(i.ref)+'">Aperçu démo</button>';
+    return '<tr><td><strong>'+escapeHtml(i.ref)+'</strong></td><td>'+escapeHtml(i.name)+'</td><td>'+escapeHtml(i.date)+'</td><td><span class="tag '+statusClassName+'">'+escapeHtml(i.status)+'</span></td><td><strong>'+money(i.price)+'</strong></td><td><div style="display:flex;gap:8px;flex-wrap:wrap">'+actions+'</div></td></tr>';
+  }).join(''):'<tr><td colspan="6"><div class="empty">Aucune facture enregistrée. Créez un brouillon pour commencer.</div></td></tr>';
 }
 
 async function loadInvoices(){
