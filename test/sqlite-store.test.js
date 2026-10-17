@@ -16,7 +16,8 @@ test('SQLite mode imports legacy JSON, persists changes transactionally and repo
     couriers: [{ id: 'courier-demo', name: 'Livreur démo' }],
     users: [{ id: 'florist-a', email: 'a@petale.test', role: 'fleuriste' }],
     audit: [{ id: 'event-migration', action: 'migration.test' }],
-    settingsByUser: { 'florist-a': { shopName: 'Fleurs de test' } }
+    settingsByUser: { 'florist-a': { shopName: 'Fleurs de test' } },
+    invoices: [{ id: 'invoice-migration', ownerId: 'florist-a', status: 'draft', invoiceNumber: '', totalCents: 2400, items: [{ description: 'Bouquet', quantity: 1, unitPrice: 20, vatRate: 20 }] }]
   };
   await fs.promises.writeFile(source, JSON.stringify(original), { mode: 0o600 });
   process.env.PETAL_STORE_PATH = source;
@@ -58,6 +59,7 @@ test('SQLite mode imports legacy JSON, persists changes transactionally and repo
     assert.equal(reopened.audit[0].id, 'event-migration');
     assert.equal(reopened.users[0].email, 'a@petale.test');
     assert.equal(reopened.settingsByUser['florist-a'].shopName, 'Fleurs de test');
+    assert.equal(reopened.invoices[0].id, 'invoice-migration');
 
     const normalizedDb = new Database(databasePath, { readonly: true });
     try {
@@ -66,6 +68,8 @@ test('SQLite mode imports legacy JSON, persists changes transactionally and repo
       assert.equal(normalizedDb.prepare('SELECT COUNT(*) AS count FROM couriers').get().count, 1);
       assert.equal(normalizedDb.prepare('SELECT COUNT(*) AS count FROM business_settings').get().count, 1);
       assert.equal(normalizedDb.prepare('SELECT COUNT(*) AS count FROM audit_events').get().count, 1);
+      assert.equal(normalizedDb.prepare('SELECT COUNT(*) AS count FROM invoices').get().count, 1);
+      assert.ok(normalizedDb.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_invoices_owner_status'").get());
       assert.ok(normalizedDb.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_orders_status_position'").get());
       assert.ok(normalizedDb.prepare('SELECT version FROM schema_migrations WHERE version = 2').get());
     } finally {
