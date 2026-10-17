@@ -91,6 +91,16 @@ test('invoice drafts validate line items and calculate amounts in cents', async 
   assert.equal(created.body.invoice.subtotalCents, 2000);
   assert.equal(created.body.invoice.taxCents, 400);
   assert.equal(created.body.invoice.totalCents, 2400);
+
+  const edited = await request('/api/invoices/' + created.body.invoice.id, {
+    method: 'PATCH',
+    body: JSON.stringify({ ...draftPayload, buyerName: 'Client Modifié', items: [{ description: 'Bouquet premium', quantity: 3, unitPrice: 12.5, vatRate: 10 }] })
+  });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.body.invoice.buyerName, 'Client Modifié');
+  assert.equal(edited.body.invoice.subtotalCents, 3750);
+  assert.equal(edited.body.invoice.taxCents, 375);
+  assert.equal(edited.body.invoice.totalCents, 4125);
 });
 
 test('invoice issue requires seller legal details and freezes a numbered seller snapshot', async () => {
@@ -120,6 +130,8 @@ test('invoice issue requires seller legal details and freezes a numbered seller 
   assert.equal(issued.body.invoice.status, 'issued');
   assert.equal(issued.body.invoice.seller.siret, '12345678901234');
   assert.equal(issued.body.invoice.totalCents, 2400);
+  const lockedEdit = await request('/api/invoices/' + draft.body.invoice.id, { method: 'PATCH', body: JSON.stringify(draftPayload) });
+  assert.equal(lockedEdit.status, 409);
 
   const secondDraft = await request('/api/invoices', { method: 'POST', body: JSON.stringify(draftPayload) });
   assert.equal(secondDraft.status, 201);
