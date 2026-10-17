@@ -19,6 +19,7 @@ const loginAttempts = new Map();
 const seed = {
   audit: [],
   users: [],
+  invoices: [],
   settingsByUser: {},
   orders: [
     { id: 'PET-0248', name: 'Élodie Bernard', address: '12 rue Fondaudège, Bordeaux', slot: '11h – 13h', price: 68, status: 'En livraison', art: '💐', bouquet: 'Bouquet de saison', courier: 'Lucas Moreau', createdAt: '2026-10-14T08:15:00.000Z' },
@@ -95,6 +96,7 @@ function normalizeStore(parsed) {
   if (parsed && Array.isArray(parsed.orders) && Array.isArray(parsed.couriers)) {
     if (!Array.isArray(parsed.audit)) parsed.audit = [];
     if (!Array.isArray(parsed.users)) parsed.users = [];
+    if (!Array.isArray(parsed.invoices)) parsed.invoices = [];
     if (!parsed.settingsByUser || typeof parsed.settingsByUser !== 'object' || Array.isArray(parsed.settingsByUser)) parsed.settingsByUser = {};
     return parsed;
   }
@@ -162,6 +164,17 @@ function getDatabase() {
         payload TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_audit_events_at ON audit_events(at);
+      CREATE TABLE IF NOT EXISTS invoices (
+        id TEXT PRIMARY KEY,
+        position INTEGER NOT NULL,
+        owner_id TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'draft',
+        invoice_number TEXT NOT NULL DEFAULT '',
+        issued_at TEXT NOT NULL DEFAULT '',
+        payload TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_invoices_owner_status ON invoices(owner_id, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_owner_number ON invoices(owner_id, invoice_number) WHERE invoice_number <> '';
       CREATE INDEX IF NOT EXISTS idx_audit_events_action ON audit_events(action);
     `);
     const stateColumns = database.pragma('table_info(app_state)');
@@ -175,7 +188,7 @@ function getDatabase() {
 }
 
 function writeRelationalStore(db, store) {
-  db.exec('DELETE FROM orders; DELETE FROM users; DELETE FROM couriers; DELETE FROM business_settings; DELETE FROM audit_events;');
+  db.exec('DELETE FROM orders; DELETE FROM users; DELETE FROM couriers; DELETE FROM business_settings; DELETE FROM audit_events; DELETE FROM invoices;');
   const insertOrder = db.prepare('INSERT INTO orders (id, position, status, created_by, courier_account_id, created_at, payload) VALUES (?, ?, ?, ?, ?, ?, ?)');
   store.orders.forEach((item, position) => insertOrder.run(
     String(item.id), position, String(item.status || ''), String(item.createdBy || ''),
@@ -194,8 +207,15 @@ function writeRelationalStore(db, store) {
     String(item.id), position, String(item.at || ''), String(item.action || ''),
     String(item.entityId || ''), JSON.stringify(item)
   ));
+  const insertInvoice = db.prepare('INSERT INTO invoices (id, position, owner_id, status, invoice_number, issued_at, payload) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  (store.invoices || []).forEach((item, position) => insertInvoice.run(
+    String(item.id), position, String(item.ownerId || ''), String(item.status || 'draft'),
+    String(item.invoiceNumber || ''), String(item.issuedAt || ''), JSON.stringify(item)
+  ));
   db.prepare('INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (2, ?, ?)')
     .run('normalized-business-tables', new Date().toISOString());
+  db.prepare('INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (4, ?, ?)')
+    .run('invoice-register', new Date().toISOString());
 }
 
 function readRelationalStore(db, store) {
@@ -205,11 +225,18 @@ function readRelationalStore(db, store) {
     migrate();
     return store;
   }
+  const invoiceMigration = db.prepare('SELECT version FROM schema_migrations WHERE version = 4').get();
+  if (!invoiceMigration) {
+    const migrateInvoices = db.transaction(() => writeRelationalStore(db, store));
+    migrateInvoices();
+    return store;
+  }
   const readPayloads = table => db.prepare('SELECT payload FROM ' + table + ' ORDER BY position').all().map(row => JSON.parse(row.payload));
   store.orders = readPayloads('orders');
   store.users = readPayloads('users');
   store.couriers = readPayloads('couriers');
   store.audit = readPayloads('audit_events');
+  store.invoices = readPayloads('invoices');
   store.settingsByUser = Object.fromEntries(db.prepare('SELECT user_id, payload FROM business_settings').all()
     .map(row => [row.user_id, JSON.parse(row.payload)]));
   return store;
@@ -374,6 +401,97 @@ function sessionCookie(token, secure) {
 function contentType(file) {
   return ({ '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' })[path.extname(file)] || 'application/octet-stream';
 }
+
+function invoiceAmountTotals(items) {
+  let subtotalCents = 0;
+  let taxCents = 0;
+  for (const item of items) {
+    const lineCents = Math.round(item.quantity * item.unitPrice * 100);
+    subtotalCents += lineCents;
+    taxCents += Math.round(lineCents * item.vatRate / 100);
+  }
+  return { subtotalCents, taxCents, totalCents: subtotalCents + taxCents };
+}
+function validateInvoiceDraft(body) {
+  const buyerName = safeString(body.buyerName, 120);
+  const buyerAddress = safeString(body.buyerAddress, 300);
+  const buyerEmail = safeString(body.buyerEmail, 254).toLowerCase();
+  if (buyerName.length < 2) return { error: 'Le nom du client doit contenir au moins 2 caractères.' };
+  if (buyerAddress.length < 5) return { error: 'L’adresse du client est obligatoire.' };
+  if (buyerEmail && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(buyerEmail)) return { error: 'Adresse e-mail du client invalide.' };
+  if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 50) return { error: 'La facture doit contenir entre 1 et 50 lignes.' };
+  const items = [];
+  for (const raw of body.items) {
+    const description = safeString(raw?.description, 180);
+    const quantity = Number(raw?.quantity);
+    const unitPrice = Number(raw?.unitPrice);
+    const vatRate = Number(raw?.vatRate);
+    if (description.length < 2) return { error: 'Chaque ligne doit avoir une description.' };
+    if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 10000 || !Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 1000000) return { error: 'Quantité ou prix unitaire invalide.' };
+    if (![0, 5.5, 10, 20].includes(vatRate)) return { error: 'Taux de TVA invalide : choisissez 0, 5,5, 10 ou 20 %.' };
+    items.push({ description, quantity, unitPrice: Math.round(unitPrice * 100) / 100, vatRate });
+  }
+  const totals = invoiceAmountTotals(items);
+  if (totals.totalCents > 10000000000) return { error: 'Le montant total dépasse la limite autorisée.' };
+  return { value: { buyerName, buyerAddress, buyerEmail, items, ...totals } };
+}
+function pdfSafeText(value) {
+  return String(value ?? '').normalize('NFKD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^\\x20-\\x7E]/g, ' ').replace(/\\s+/g, ' ').trim().replace(/\\\\/g, '\\\\\\\\').replace(/\\(/g, '\\\\(').replace(/\\)/g, '\\\\)');
+}
+function createInvoicePdf(invoice) {
+  const seller = invoice.seller || {};
+  const lines = [
+    'FACTURE ' + (invoice.invoiceNumber || 'BROUILLON'),
+    'Statut : ' + (invoice.status === 'issued' ? 'EMISE' : 'BROUILLON'),
+    'Date : ' + new Date(invoice.issuedAt || invoice.createdAt).toLocaleDateString('fr-FR'),
+    '',
+    'VENDEUR',
+    seller.shopName || '', seller.ownerName || '', seller.pickupAddress || '',
+    'Email : ' + (seller.email || ''), 'SIRET : ' + (seller.siret || ''),
+    'TVA : ' + (seller.vatNumber || 'Non renseignee'),
+    '',
+    'CLIENT',
+    invoice.buyerName, invoice.buyerAddress, invoice.buyerEmail || '',
+    '',
+    'DETAIL',
+    'Description | Quantite | Prix HT | TVA | Total TTC'
+  ];
+  for (const item of invoice.items) {
+    const lineTotal = Math.round(item.quantity * item.unitPrice * 100) + Math.round(Math.round(item.quantity * item.unitPrice * 100) * item.vatRate / 100);
+    lines.push(item.description + ' | ' + item.quantity + ' | ' + item.unitPrice.toFixed(2) + ' EUR | ' + item.vatRate + '% | ' + (lineTotal / 100).toFixed(2) + ' EUR');
+  }
+  lines.push('', 'Total HT : ' + (invoice.subtotalCents / 100).toFixed(2) + ' EUR');
+  lines.push('TVA : ' + (invoice.taxCents / 100).toFixed(2) + ' EUR');
+  lines.push('TOTAL TTC : ' + (invoice.totalCents / 100).toFixed(2) + ' EUR');
+  if (invoice.status !== 'issued') lines.push('', 'DOCUMENT DE TRAVAIL - NON EMIS');
+  const visibleLines = lines.slice(0, 43);
+  const stream = ['BT', '/F1 10 Tf', '50 790 Td'];
+  visibleLines.forEach((line, index) => {
+    if (index) stream.push('0 -17 Td');
+    stream.push('(' + pdfSafeText(line) + ') Tj');
+  });
+  stream.push('ET');
+  const streamBody = stream.join('\n');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Length ' + Buffer.byteLength(streamBody, 'ascii') + ' >>\\nstream\\n' + streamBody + '\\nendstream'
+  ];
+  let pdf = '%PDF-1.4\\n';
+  const offsets = [0];
+  for (let i = 0; i < objects.length; i += 1) {
+    offsets.push(Buffer.byteLength(pdf, 'ascii'));
+    pdf += (i + 1) + ' 0 obj\\n' + objects[i] + '\\nendobj\\n';
+  }
+  const xrefOffset = Buffer.byteLength(pdf, 'ascii');
+  pdf += 'xref\\n0 ' + (objects.length + 1) + '\\n0000000000 65535 f \\n';
+  for (const offset of offsets.slice(1)) pdf += String(offset).padStart(10, '0') + ' 00000 n \\n';
+  pdf += 'trailer\\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R >>\\nstartxref\\n' + xrefOffset + '\\n%%EOF';
+  return Buffer.from(pdf, 'ascii');
+}
+
 function createServer() {
   // Hash the configured bootstrap password once per process/server, not on every login attempt.
   const adminPasswordRecord = process.env.PETAL_ADMIN_PASSWORD ? passwordRecord(process.env.PETAL_ADMIN_PASSWORD) : '';
@@ -527,6 +645,75 @@ function createServer() {
           store.audit = store.audit.slice(0, 1000);
           await saveStore(store);
           return json(res, 200, { settings });
+        }
+        if (url.pathname === '/api/invoices' && req.method === 'GET') {
+          if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'La facturation est réservée aux comptes fleuriste.' });
+          const invoices = (store.invoices || []).filter(invoice => activeSession.user.role === 'admin' || invoice.ownerId === activeSession.user.id);
+          return json(res, 200, { invoices: invoices.map(invoice => ({ ...invoice, pdfAvailable: invoice.status === 'issued' })) });
+        }
+        if (url.pathname === '/api/invoices' && req.method === 'POST') {
+          if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'La facturation est réservée aux comptes fleuriste.' });
+          const body = await readBody(req);
+          const validated = validateInvoiceDraft(body);
+          if (validated.error) return json(res, 422, { error: validated.error });
+          const now = new Date().toISOString();
+          const invoice = {
+            id: crypto.randomUUID(), ownerId: activeSession.user.id, status: 'draft',
+            invoiceNumber: '', createdAt: now, updatedAt: now, createdBy: activeSession.user.email,
+            buyerName: validated.value.buyerName, buyerAddress: validated.value.buyerAddress,
+            buyerEmail: validated.value.buyerEmail, items: validated.value.items,
+            subtotalCents: validated.value.subtotalCents, taxCents: validated.value.taxCents,
+            totalCents: validated.value.totalCents
+          };
+          store.invoices ||= [];
+          store.invoices.unshift(invoice);
+          store.audit.unshift({ id: crypto.randomUUID(), action: 'invoice.draft_created', entityId: invoice.id, actor: activeSession.user.email, at: now });
+          store.audit = store.audit.slice(0, 1000);
+          await saveStore(store);
+          return json(res, 201, { invoice });
+        }
+        const issueMatch = url.pathname.match(/^\\/api\\/invoices\\/([a-f0-9-]+)\\/issue$/i);
+        if (issueMatch && req.method === 'POST') {
+          if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'La facturation est réservée aux comptes fleuriste.' });
+          const invoice = (store.invoices || []).find(item => item.id === issueMatch[1]);
+          if (!invoice || (activeSession.user.role !== 'admin' && invoice.ownerId !== activeSession.user.id)) return json(res, 404, { error: 'Facture introuvable.' });
+          if (invoice.status !== 'draft') return json(res, 409, { error: 'Cette facture a déjà été émise et ne peut plus être modifiée.' });
+          const settings = store.settingsByUser[activeSession.user.id];
+          if (!settings || settings.shopName.length < 2 || settings.ownerName.length < 2 || !settings.email || settings.pickupAddress.length < 5 || !/^\\d{14}$/.test(settings.siret || '')) {
+            return json(res, 422, { error: 'Complétez les informations légales de la boutique (nom, responsable, e-mail, adresse et SIRET de 14 chiffres) avant émission.' });
+          }
+          const now = new Date();
+          const year = now.getFullYear();
+          const prefix = 'FAC-' + year + '-';
+          const sequence = (store.invoices || []).filter(item => item.ownerId === invoice.ownerId && item.status === 'issued' && item.invoiceNumber.startsWith(prefix)).length + 1;
+          invoice.invoiceNumber = prefix + String(sequence).padStart(4, '0');
+          invoice.status = 'issued';
+          invoice.issuedAt = now.toISOString();
+          invoice.seller = {
+            shopName: settings.shopName, ownerName: settings.ownerName, email: settings.email,
+            phone: settings.phone || '', pickupAddress: settings.pickupAddress,
+            siret: settings.siret, vatNumber: settings.vatNumber || ''
+          };
+          invoice.updatedAt = invoice.issuedAt;
+          store.audit.unshift({ id: crypto.randomUUID(), action: 'invoice.issued', entityId: invoice.id, actor: activeSession.user.email, at: invoice.issuedAt, invoiceNumber: invoice.invoiceNumber });
+          store.audit = store.audit.slice(0, 1000);
+          await saveStore(store);
+          return json(res, 200, { invoice });
+        }
+        const pdfMatch = url.pathname.match(/^\\/api\\/invoices\\/([a-f0-9-]+)\\.pdf$/i);
+        if (pdfMatch && req.method === 'GET') {
+          if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'La facturation est réservée aux comptes fleuriste.' });
+          const invoice = (store.invoices || []).find(item => item.id === pdfMatch[1]);
+          if (!invoice || (activeSession.user.role !== 'admin' && invoice.ownerId !== activeSession.user.id)) return json(res, 404, { error: 'Facture introuvable.' });
+          const pdf = createInvoicePdf(invoice);
+          res.writeHead(200, {
+            'Content-Type': 'application/pdf',
+            'Content-Length': pdf.length,
+            'Content-Disposition': 'attachment; filename="' + (invoice.invoiceNumber || 'brouillon-' + invoice.id) + '.pdf"',
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff'
+          });
+          return res.end(pdf);
         }
         if (url.pathname === '/api/users' && req.method === 'GET') {
           if (activeSession.user.role !== 'admin') return json(res, 403, { error: 'Droits administrateur requis.' });
