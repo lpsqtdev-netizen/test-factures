@@ -672,7 +672,7 @@ function createServer() {
           await saveStore(store);
           return json(res, 201, { invoice });
         }
-        const issueMatch = url.pathname.match(new RegExp('^/api/invoices/([a-f0-9-]+)/issue;
+        const issueMatch = url.pathname.match(new RegExp('^/api/invoices/([a-f0-9-]+)/issue$', 'i'));
         if (issueMatch && req.method === 'POST') {
           if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'La facturation est réservée aux comptes fleuriste.' });
           const invoice = (store.invoices || []).find(item => item.id === issueMatch[1]);
@@ -700,7 +700,7 @@ function createServer() {
           await saveStore(store);
           return json(res, 200, { invoice });
         }
-        const pdfMatch = url.pathname.match(new RegExp('^/api/invoices/([a-f0-9-]+)\\.pdf;
+        const pdfMatch = url.pathname.match(new RegExp('^/api/invoices/([a-f0-9-]+)\\.pdf$', 'i'));
         if (pdfMatch && req.method === 'GET') {
           if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'La facturation est réservée aux comptes fleuriste.' });
           const invoice = (store.invoices || []).find(item => item.id === pdfMatch[1]);
@@ -903,7 +903,7 @@ module.exports = { createServer, validateNewOrder, loadStore, saveStore, closeSt
           await saveStore(store);
           return json(res, 200, { invoice });
         }
-        const pdfMatch = url.pathname.match(/^\\/api\\/invoices\\/([a-f0-9-]+)\\.pdf$/i);
+        const pdfMatch = url.pathname.match(new RegExp('^/api/invoices/([a-f0-9-]+)\\.pdf$', 'i'));
         if (pdfMatch && req.method === 'GET') {
           if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'La facturation est réservée aux comptes fleuriste.' });
           const invoice = (store.invoices || []).find(item => item.id === pdfMatch[1]);
@@ -1281,7 +1281,7 @@ module.exports = { createServer, validateNewOrder, loadStore, saveStore, closeSt
           await saveStore(store);
           return json(res, 200, { invoice });
         }
-        const pdfMatch = url.pathname.match(/^\\/api\\/invoices\\/([a-f0-9-]+)\\.pdf$/i);
+        const pdfMatch = url.pathname.match(new RegExp('^/api/invoices/([a-f0-9-]+)\\.pdf$', 'i'));
         if (pdfMatch && req.method === 'GET') {
           if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'La facturation est réservée aux comptes fleuriste.' });
           const invoice = (store.invoices || []).find(item => item.id === pdfMatch[1]);
