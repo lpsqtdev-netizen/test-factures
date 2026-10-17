@@ -1,0 +1,13 @@
+node_modules/
+data/store.json
+data/*.sqlite
+data/*.sqlite-*
+data/*.sqlite.backups/
+data/*.tmp
+.env
+.env.*
+!.env.example
+coverage/
+.DS_Store
+
+data/*.backups/
