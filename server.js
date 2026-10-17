@@ -673,6 +673,30 @@ function createServer() {
           return json(res, 201, { invoice });
         }
         const editMatch = url.pathname.match(new RegExp('^/api/invoices/([a-f0-9-]+)$', 'i'));
+        if (editMatch && req.method === 'PATCH') {
+          if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'La facturation est réservée aux comptes fleuriste.' });
+          const invoice = (store.invoices || []).find(item => item.id === editMatch[1]);
+          if (!invoice || (activeSession.user.role !== 'admin' && invoice.ownerId !== activeSession.user.id)) return json(res, 404, { error: 'Facture introuvable.' });
+          if (invoice.status !== 'draft') return json(res, 409, { error: 'Une facture émise est verrouillée et ne peut plus être modifiée.' });
+          const body = await readBody(req);
+          const validated = validateInvoiceDraft(body);
+          if (validated.error) return json(res, 422, { error: validated.error });
+          Object.assign(invoice, {
+            buyerName: validated.value.buyerName,
+            buyerAddress: validated.value.buyerAddress,
+            buyerEmail: validated.value.buyerEmail,
+            items: validated.value.items,
+            subtotalCents: validated.value.subtotalCents,
+            taxCents: validated.value.taxCents,
+            totalCents: validated.value.totalCents,
+            updatedAt: new Date().toISOString()
+          });
+          store.audit.unshift({ id: crypto.randomUUID(), action: 'invoice.draft_updated', entityId: invoice.id, actor: activeSession.user.email, at: invoice.updatedAt });
+          store.audit = store.audit.slice(0, 1000);
+          await saveStore(store);
+          return json(res, 200, { invoice });
+        }
+        const issueMatch = url.pathname.match(new RegExp('^/api/invoices/([a-f0-9-]+)/issue$', 'i'));
         if (issueMatch && req.method === 'POST') {
           if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'La facturation est réservée aux comptes fleuriste.' });
           const invoice = (store.invoices || []).find(item => item.id === issueMatch[1]);
