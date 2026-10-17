@@ -10,13 +10,13 @@ Pétale est un MVP de plateforme de coordination entre fleuristes indépendants 
 - Dispatch des missions vers des comptes livreurs partenaires enregistrés (les livreurs de démonstration ne peuvent pas recevoir de vraies commandes).
 - Espace livreur de démonstration pour accepter et terminer une livraison.
 - Annuaire des livreurs partenaires et vue tournée illustrative.
-- Registre de facturation connecté à l'API : création de brouillons, calcul HT/TVA/TTC en centimes, émission numérotée, instantané vendeur figé et génération PDF (les contrôles légaux complets restent à valider avant usage commercial).
-- Export CSV du registre de commandes.
+- Registre de facturation connecté à l'API : création et modification de brouillons, calcul HT/TVA/TTC en centimes, émission numérotée, instantané vendeur figé et génération PDF (les contrôles légaux complets restent à valider avant usage commercial).
+- Export CSV du registre des factures.
 - Actualisation périodique des commandes entre navigateurs connectés à la même instance.
 - Session administrateur, formulaire de connexion/déconnexion et routes métier protégées.
 - Image Docker non privilégiée, health check, volume persistant et sauvegardes locales tournantes du fichier JSON (7 versions maximum).
 
-Les données et personnes préremplies sont fictives. Les vues de cartographie, facturation et intégrations restent des démonstrations ; aucun paiement, itinéraire réel, email/SMS ou service Google/n8n n'est activé. Le serveur peut utiliser SQLite en mode mono-instance ; la migration initiale conserve le JSON d'origine.
+Les données et personnes préremplies sont fictives. La facturation dispose d'un workflow API et de PDF, mais la conformité fiscale doit encore être validée avant usage commercial. Les vues de cartographie et intégrations restent des démonstrations ; aucun paiement, itinéraire réel, email/SMS ou service Google/n8n n'est activé. Le serveur peut utiliser SQLite en mode mono-instance ; la migration initiale conserve le JSON d'origine.
 
 ## Démarrage local
 
