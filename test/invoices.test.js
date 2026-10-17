@@ -121,6 +121,12 @@ test('invoice issue requires seller legal details and freezes a numbered seller 
   assert.equal(issued.body.invoice.seller.siret, '12345678901234');
   assert.equal(issued.body.invoice.totalCents, 2400);
 
+  const secondDraft = await request('/api/invoices', { method: 'POST', body: JSON.stringify(draftPayload) });
+  assert.equal(secondDraft.status, 201);
+  const secondIssued = await request('/api/invoices/' + secondDraft.body.invoice.id + '/issue', { method: 'POST', body: '{}' });
+  assert.equal(secondIssued.status, 200);
+  assert.match(secondIssued.body.invoice.invoiceNumber, /^FAC-\\d{4}-0002$/);
+
   const repeated = await request('/api/invoices/' + draft.body.invoice.id + '/issue', { method: 'POST', body: '{}' });
   assert.equal(repeated.status, 409);
 
