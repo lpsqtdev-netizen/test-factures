@@ -10,7 +10,8 @@ Pétale est un MVP de plateforme de coordination entre fleuristes indépendants 
 - Dispatch des missions vers des comptes livreurs partenaires enregistrés (les livreurs de démonstration ne peuvent pas recevoir de vraies commandes).
 - Espace livreur de démonstration pour accepter et terminer une livraison.
 - Annuaire des livreurs partenaires et vue tournée illustrative.
-- Registre de facturation connecté à l'API : création de brouillons, calcul HT/TVA/TTC en centimes, émission numérotée, instantané vendeur figé et génération PDF (les contrôles légaux complets restent à valider avant usage commercial).\n- Export CSV du registre de commandes.
+- Registre de facturation connecté à l'API : création de brouillons, calcul HT/TVA/TTC en centimes, émission numérotée, instantané vendeur figé et génération PDF (les contrôles légaux complets restent à valider avant usage commercial).
+- Export CSV du registre de commandes.
 - Actualisation périodique des commandes entre navigateurs connectés à la même instance.
 - Session administrateur, formulaire de connexion/déconnexion et routes métier protégées.
 - Image Docker non privilégiée, health check, volume persistant et sauvegardes locales tournantes du fichier JSON (7 versions maximum).
@@ -46,7 +47,12 @@ Sans identifiants administrateur configurés, l'API métier reste fermée et le 
 - `GET /api/orders/available` — missions ouvertes sans données de contact privées, réservé aux livreurs.
 - `POST /api/auth/logout` — ferme la session.
 - `GET /api/orders` — liste les commandes.
-- `GET /api/audit` — journal des 200 événements les plus récents (créations et changements de commande).\n- `GET /api/invoices` — registre des factures du compte (administrateur : vue globale).\n- `POST /api/invoices` — crée un brouillon avec client, lignes et taux de TVA validés.\n- `POST /api/invoices/:id/issue` — émet un brouillon avec numéro séquentiel annuel et instantané des informations vendeur ; une facture émise ne peut pas être réémise.\n- `GET /api/invoices/:id.pdf` — télécharge le PDF de travail ou la facture émise, dans le périmètre autorisé.
+- `GET /api/audit` — journal des 200 événements les plus récents (créations et changements de commande).
+- `GET /api/invoices` — registre des factures du compte (administrateur : vue globale).
+- `POST /api/invoices` — crée un brouillon avec client, lignes et taux de TVA validés.
+- `PATCH /api/invoices/:id` — modifie un brouillon appartenant au compte ; les factures émises sont verrouillées (HTTP 409).
+- `POST /api/invoices/:id/issue` — émet un brouillon avec numéro séquentiel annuel et instantané des informations vendeur ; une facture émise ne peut pas être réémise.
+- `GET /api/invoices/:id.pdf` — télécharge le PDF de travail ou la facture émise, dans le périmètre autorisé.
 - `POST /api/orders` — crée une commande après validation.
 - `PATCH /api/orders/:id/assign` — assigne un livreur et démarre la livraison.
 - `PATCH /api/orders/:id/status` — fait évoluer le statut selon le cycle `À préparer → En livraison → Livrée` et enregistre la date et l'acteur de confirmation.
