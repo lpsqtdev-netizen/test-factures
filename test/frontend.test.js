@@ -99,6 +99,8 @@ test('invoice view uses the API for drafts, issuance, PDF download and live tota
   assert.match(html, /id="invoiceDraftForm"/);
   assert.match(html, /\/api\/invoices/);
   assert.match(html, /data-issue-invoice/);
+  assert.match(html, /data-edit-invoice/);
+  assert.match(html, /method:'PATCH'/);
   assert.match(html, /data-invoice-pdf/);
   assert.match(html, /async function loadInvoices\(\)/);
   assert.match(html, /invoiceIssuedTotal/);
