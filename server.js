@@ -418,7 +418,7 @@ function validateInvoiceDraft(body) {
   const buyerEmail = safeString(body.buyerEmail, 254).toLowerCase();
   if (buyerName.length < 2) return { error: 'Le nom du client doit contenir au moins 2 caractères.' };
   if (buyerAddress.length < 5) return { error: 'L’adresse du client est obligatoire.' };
-  if (buyerEmail && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(buyerEmail)) return { error: 'Adresse e-mail du client invalide.' };
+  if (buyerEmail && (!buyerEmail.includes('@') || buyerEmail.lastIndexOf('.') < buyerEmail.indexOf('@') + 2 || buyerEmail.includes(' '))) return { error: 'Adresse e-mail du client invalide.' };
   if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 50) return { error: 'La facture doit contenir entre 1 et 50 lignes.' };
   const items = [];
   for (const raw of body.items) {
@@ -679,7 +679,7 @@ function createServer() {
           if (!invoice || (activeSession.user.role !== 'admin' && invoice.ownerId !== activeSession.user.id)) return json(res, 404, { error: 'Facture introuvable.' });
           if (invoice.status !== 'draft') return json(res, 409, { error: 'Cette facture a déjà été émise et ne peut plus être modifiée.' });
           const settings = store.settingsByUser[invoice.ownerId];
-          if (!settings || settings.shopName.length < 2 || settings.ownerName.length < 2 || !settings.email || settings.pickupAddress.length < 5 || !/^\\d{14}$/.test(settings.siret || '')) {
+          if (!settings || settings.shopName.length < 2 || settings.ownerName.length < 2 || !settings.email || settings.pickupAddress.length < 5 || !/^[0-9]{14}$/.test(settings.siret || '')) {
             return json(res, 422, { error: 'Complétez les informations légales de la boutique (nom, responsable, e-mail, adresse et SIRET de 14 chiffres) avant émission.' });
           }
           const now = new Date();
