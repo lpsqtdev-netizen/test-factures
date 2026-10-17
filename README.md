@@ -10,7 +10,7 @@ Pétale est un MVP de plateforme de coordination entre fleuristes indépendants 
 - Dispatch des missions vers des comptes livreurs partenaires enregistrés (les livreurs de démonstration ne peuvent pas recevoir de vraies commandes).
 - Espace livreur de démonstration pour accepter et terminer une livraison.
 - Annuaire des livreurs partenaires et vue tournée illustrative.
-- Registre de facturation de démonstration et export CSV.
+- Registre de facturation connecté à l'API : création de brouillons, calcul HT/TVA/TTC en centimes, émission numérotée, instantané vendeur figé et génération PDF (les contrôles légaux complets restent à valider avant usage commercial).\n- Export CSV du registre de commandes.
 - Actualisation périodique des commandes entre navigateurs connectés à la même instance.
 - Session administrateur, formulaire de connexion/déconnexion et routes métier protégées.
 - Image Docker non privilégiée, health check, volume persistant et sauvegardes locales tournantes du fichier JSON (7 versions maximum).
@@ -46,7 +46,7 @@ Sans identifiants administrateur configurés, l'API métier reste fermée et le 
 - `GET /api/orders/available` — missions ouvertes sans données de contact privées, réservé aux livreurs.
 - `POST /api/auth/logout` — ferme la session.
 - `GET /api/orders` — liste les commandes.
-- `GET /api/audit` — journal des 200 événements les plus récents (créations et changements de commande).
+- `GET /api/audit` — journal des 200 événements les plus récents (créations et changements de commande).\n- `GET /api/invoices` — registre des factures du compte (administrateur : vue globale).\n- `POST /api/invoices` — crée un brouillon avec client, lignes et taux de TVA validés.\n- `POST /api/invoices/:id/issue` — émet un brouillon avec numéro séquentiel annuel et instantané des informations vendeur ; une facture émise ne peut pas être réémise.\n- `GET /api/invoices/:id.pdf` — télécharge le PDF de travail ou la facture émise, dans le périmètre autorisé.
 - `POST /api/orders` — crée une commande après validation.
 - `PATCH /api/orders/:id/assign` — assigne un livreur et démarre la livraison.
 - `PATCH /api/orders/:id/status` — fait évoluer le statut selon le cycle `À préparer → En livraison → Livrée` et enregistre la date et l'acteur de confirmation.
@@ -56,7 +56,7 @@ Les routes métier exigent une session valide. Le cookie est HttpOnly, SameSite=
 
 ## Préparer une migration SQLite
 
-Le serveur prend en charge SQLite lorsque `PETAL_DATABASE_PATH` est défini. Il importe automatiquement un ancien `store.json` au premier démarrage, sans le supprimer. Les commandes, utilisateurs, livreurs, paramètres de boutique et événements d'audit sont aussi conservés dans des tables SQLite dédiées, avec des index sur les champs de recherche courants. Le serveur relit ces tables normalisées ; les écritures sont atomiques dans une transaction SQLite et créent une sauvegarde privée tournante (7 versions maximum). L'utilitaire CLI permet aussi de préparer une base à partir d'un instantané JSON ; il conserve le fichier source, est idempotent et refuse d'écraser un état cible différent.
+Le serveur prend en charge SQLite lorsque `PETAL_DATABASE_PATH` est défini. Il importe automatiquement un ancien `store.json` au premier démarrage, sans le supprimer. Les commandes, utilisateurs, livreurs, paramètres de boutique et événements d'audit sont aussi conservés dans des tables SQLite dédiées, avec des index sur les champs de recherche courants. Le serveur relit ces tables normalisées, y compris le registre des factures ; les écritures sont atomiques dans une transaction SQLite et créent une sauvegarde privée tournante (7 versions maximum). L'utilitaire CLI permet aussi de préparer une base à partir d'un instantané JSON ; il conserve le fichier source, est idempotent et refuse d'écraser un état cible différent.
 
 ```bash
 npm install
@@ -91,7 +91,7 @@ Le volume `petale-data` conserve les données entre les redémarrages. Le conten
 1. Remplacer progressivement les sauvegardes d'état complet par des mutations métier ciblées ; garder le contrôle de révision en garde-fou et tester la charge avant d'ouvrir plusieurs instances.
 2. Compléter les invitations et la récupération de compte, puis auditer les autorisations par rôle (administrateur, fleuriste, livreur).
 3. Ajouter une stratégie de sauvegarde externalisée avec tests réguliers de restauration, monitoring, gestion de session multi-utilisateur et procédures de récupération.
-4. Générer de véritables factures PDF avec numérotation et informations légales configurées.
+4. Finaliser la conformité des factures : vérifier les mentions obligatoires selon la situation du vendeur et du client, les règles de TVA/exonération, les dates et échéances, les avoirs/corrections, l'archivage et les obligations françaises applicables. Les PDF actuels et leur numérotation sont un socle technique, pas une garantie de conformité fiscale.
 5. Connecter cartographie, géocodage, itinéraires, notifications et paiements via des intégrations sécurisées.
 6. Finaliser les mentions légales, la confidentialité, la conservation/suppression des données et les contrôles de sécurité.
 7. Déployer sur un hébergement HTTPS, configurer les secrets et effectuer des tests de charge et de sécurité.
