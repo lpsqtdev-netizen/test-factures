@@ -91,3 +91,16 @@ test('order register displays escaped delivery proof metadata', () => {
   assert.match(html, /o\.deliveredAt/);
   assert.match(html, /toLocaleString\('fr-FR'/);
 });
+
+
+test('invoice view uses the API for drafts, issuance, PDF download and live totals', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /id="newInvoiceBtn"/);
+  assert.match(html, /id="invoiceDraftForm"/);
+  assert.match(html, /\/api\/invoices/);
+  assert.match(html, /data-issue-invoice/);
+  assert.match(html, /data-invoice-pdf/);
+  assert.match(html, /async function loadInvoices\(\)/);
+  assert.match(html, /invoiceIssuedTotal/);
+  assert.match(html, /Émettre/);
+});
