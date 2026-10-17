@@ -104,5 +104,7 @@ test('invoice view uses the API for drafts, issuance, PDF download and live tota
   assert.match(html, /data-invoice-pdf/);
   assert.match(html, /async function loadInvoices\(\)/);
   assert.match(html, /invoiceIssuedTotal/);
+  assert.match(html, /petale-factures\.csv/);
+  assert.match(html, /Total TTC EUR/);
   assert.match(html, /Émettre/);
 });
