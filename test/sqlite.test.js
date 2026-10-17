@@ -102,7 +102,7 @@ test('SQLite mode imports initial state, persists API mutations, and restores st
   }
 
   const backupDir = process.env.PETAL_DATABASE_PATH + '.backups';
-  const backups = (await fs.promises.readdir(backupDir)).filter(name => /^store-.*\\.sqlite$/.test(name));
+  const backups = (await fs.promises.readdir(backupDir)).filter(name => name.startsWith('store-') && name.endsWith('.sqlite'));
   assert.ok(backups.length >= 1, 'a private SQLite backup should be created before mutation');
   assert.ok(backups.length <= 7, 'SQLite backup retention should be bounded to seven files');
   if (process.platform !== 'win32') {
