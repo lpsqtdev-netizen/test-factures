@@ -705,7 +705,7 @@ function createServer() {
           if (!['admin', 'fleuriste'].includes(activeSession.user.role)) return json(res, 403, { error: 'La facturation est réservée aux comptes fleuriste.' });
           const invoice = (store.invoices || []).find(item => item.id === pdfMatch[1]);
           if (!invoice || (activeSession.user.role !== 'admin' && invoice.ownerId !== activeSession.user.id)) return json(res, 404, { error: 'Facture introuvable.' });
-          const pdf = createInvoicePdf(invoice);
+          const pdf = createInvoicePdf(invoice.status === 'issued' ? invoice : { ...invoice, seller: store.settingsByUser[invoice.ownerId] || {} });
           res.writeHead(200, {
             'Content-Type': 'application/pdf',
             'Content-Length': pdf.length,
