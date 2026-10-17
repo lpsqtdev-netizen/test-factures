@@ -678,14 +678,14 @@ function createServer() {
           const invoice = (store.invoices || []).find(item => item.id === issueMatch[1]);
           if (!invoice || (activeSession.user.role !== 'admin' && invoice.ownerId !== activeSession.user.id)) return json(res, 404, { error: 'Facture introuvable.' });
           if (invoice.status !== 'draft') return json(res, 409, { error: 'Cette facture a déjà été émise et ne peut plus être modifiée.' });
-          const settings = store.settingsByUser[activeSession.user.id];
+          const settings = store.settingsByUser[invoice.ownerId];
           if (!settings || settings.shopName.length < 2 || settings.ownerName.length < 2 || !settings.email || settings.pickupAddress.length < 5 || !/^\\d{14}$/.test(settings.siret || '')) {
             return json(res, 422, { error: 'Complétez les informations légales de la boutique (nom, responsable, e-mail, adresse et SIRET de 14 chiffres) avant émission.' });
           }
           const now = new Date();
           const year = now.getFullYear();
           const prefix = 'FAC-' + year + '-';
-          const sequence = (store.invoices || []).reduce((max, item) => { const match = item.ownerId === invoice.ownerId && item.status === 'issued' ? item.invoiceNumber.match(new RegExp('^FAC-' + year + '-(\\d+)
+          const sequence = (store.invoices || []).reduce((max, item) => { const invoicePrefix = 'FAC-' + year + '-'; const number = item.ownerId === invoice.ownerId && item.status === 'issued' && item.invoiceNumber.startsWith(invoicePrefix) ? Number(item.invoiceNumber.slice(invoicePrefix.length)) : 0; return Number.isSafeInteger(number) ? Math.max(max, number) : max; }, 0) + 1;
           invoice.invoiceNumber = prefix + String(sequence).padStart(4, '0');
           invoice.status = 'issued';
           invoice.issuedAt = now.toISOString();
