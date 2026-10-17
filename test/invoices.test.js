@@ -129,9 +129,15 @@ test('invoice issue requires seller legal details and freezes a numbered seller 
   assert.match(issued.body.invoice.invoiceNumber, /^FAC-\d{4}-0001$/);
   assert.equal(issued.body.invoice.status, 'issued');
   assert.equal(issued.body.invoice.seller.siret, '12345678901234');
+  assert.equal(issued.body.invoice.seller.shopName, 'Maison des Fleurs');
   assert.equal(issued.body.invoice.totalCents, 2400);
   const lockedEdit = await request('/api/invoices/' + draft.body.invoice.id, { method: 'PATCH', body: JSON.stringify(draftPayload) });
   assert.equal(lockedEdit.status, 409);
+
+  const changedSettings = await request('/api/settings', { method: 'POST', body: JSON.stringify({ shopName: 'Boutique modifiée', ownerName: 'Camille Fleuriste', email: 'contact@maisondesfleurs.test', phone: '0556000000', pickupAddress: '8 cours Victor Hugo, Bordeaux', siret: '12345678901234', vatNumber: 'FR12345678901' }) });
+  assert.equal(changedSettings.status, 200);
+  const frozen = await request('/api/invoices');
+  assert.equal(frozen.body.invoices.find(invoice => invoice.id === draft.body.invoice.id).seller.shopName, 'Maison des Fleurs');
 
   const secondDraft = await request('/api/invoices', { method: 'POST', body: JSON.stringify(draftPayload) });
   assert.equal(secondDraft.status, 201);
