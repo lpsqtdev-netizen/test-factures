@@ -1,0 +1,19 @@
+{
+  "name": "petale-florist-delivery",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Pétale — plateforme de coordination des livraisons florales",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node --env-file=.env server.js",
+    "dev": "node --env-file=.env --watch server.js",
+    "test": "node --test",
+    "migrate:sqlite": "node scripts/migrate-store-to-sqlite.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "11.10.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
